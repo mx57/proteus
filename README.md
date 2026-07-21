@@ -98,7 +98,7 @@ bsdpi-rs/
 
 **Proteus** является форком [BSDPI_AI](https://github.com/mx57/BSDPI_AI) — полный рерайт с C# (.NET 10, WPF) на Rust.
 
-Оригинальный BSDPI_AI — форк [klondike0x/FluxRoute](https://github.com/klondike0x/FluxRoute) с независимо разработанным AI-слоем. AI-функции (Thompson Sampling, генетическая эволюция, Network Fingerprinting, Wilson Score) были разработаны @mx57.
+AI-функции (Thompson Sampling, генетическая эволюция, Network Fingerprinting, Wilson Score) были разработаны @mx57.
 
 ## 📄 Лицензия
 
