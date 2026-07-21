@@ -1,0 +1,29 @@
+[workspace]
+resolver = "2"
+members = [
+    "bsdpi-ai",
+    "bsdpi-engine",
+    "bsdpi-core",
+    "bsdpi-android",
+    "bsdpi-gui",
+    "bsdpi-updater",
+    "bsdpi-cli",
+]
+
+[workspace.dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+rand = "0.8"
+sha2 = "0.10"
+chrono = { version = "0.4", features = ["serde"] }
+uuid = { version = "1", features = ["v4", "serde"] }
+tokio = { version = "1", features = ["full"] }
+thiserror = "2"
+log = "0.4"
+env_logger = "0.11"
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+license = "GPL-3.0-only"
+authors = ["mx57"]

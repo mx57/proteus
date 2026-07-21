@@ -1,0 +1,21 @@
+[package]
+name = "bsdpi-engine"
+version.workspace = true
+edition = "2021"
+license.workspace = true
+authors.workspace = true
+description = "BSDPI DPI Engine Layer — WinDivert, Zapret, ByeDPI, Warp"
+
+[dependencies]
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+log.workspace = true
+tokio.workspace = true
+uuid.workspace = true
+chrono.workspace = true
+async-trait = "0.1"
+
+[target.'cfg(windows)'.dependencies]
+
+[target.'cfg(unix)'.dependencies]

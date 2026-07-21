@@ -1,0 +1,21 @@
+[package]
+name = "bsdpi-ai"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+description = "BSDPI AI Core — Thompson Sampling, Genetic Evolution, Network Fingerprinting"
+
+[dependencies]
+serde.workspace = true
+serde_json.workspace = true
+rand.workspace = true
+sha2.workspace = true
+chrono.workspace = true
+uuid.workspace = true
+thiserror.workspace = true
+log.workspace = true
+rand_distr = "0.4"
+itertools = "0.14"
+
+[dev-dependencies]

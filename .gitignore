@@ -1,0 +1,27 @@
+# Rust
+target/
+Cargo.lock
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Temp files
+*.tmp
+*.log
+
+# Environment
+.env
+.ghtoken
+
+# Engine binaries (large, should be downloaded)
+engine/bin/
+engine/*.exe
+engine/*.dll
+engine/*.sys
