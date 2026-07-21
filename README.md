@@ -96,7 +96,7 @@ bsdpi-rs/
 
 ## 🔄 Преемственность
 
-**Proteus** является форком [BSDPI_AI](https://github.com/mx57/BSDPI_AI) — полный рерайт с C# (.NET 10, WPF) на Rust.
+**Proteus** [BSDPI_AI](https://github.com/mx57/BSDPI_AI) — полный рерайт с C# (.NET 10, WPF) на Rust.
 
 AI-функции (Thompson Sampling, генетическая эволюция, Network Fingerprinting, Wilson Score) были разработаны @mx57.
 
