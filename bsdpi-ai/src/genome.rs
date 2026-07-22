@@ -1,23 +1,21 @@
-//! StrategyGenome — геном стратегии DPI-обхода.
+//! StrategyGenome — полный набор параметров DPI bypass стратегии.
 //!
-//! Содержит 50+ параметров конфигурации DPI-движков.
-//! Может быть сериализован в JSON и преобразован в EngineProfile для запуска.
+//! Содержит 50+ полей, описывающих все параметры DPI движка (Zapret, ByeDPI, Warp).
+//! Конвертируется в EngineProfile для запуска движка.
 //!
-//! C# оригинал: `BSDPI.AI/Models/StrategyGenome.cs`
+//! ## C# оригинал
+//! `BSDPI.AI/Models/StrategyGenome.cs`
 
-use serde::{Deserialize, Serialize};
 use chrono::{DateTime, Utc};
-use std::fmt;
+use serde::{Deserialize, Serialize};
+use uuid::Uuid;
 
-/// Тип DPI-движка.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Hash)]
+/// Тип DPI движка
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum DpiEngineType {
     Zapret,
     ByeDpi,
     Warp,
-    Hybrid,
-    Chained,
-    None,
 }
 
 impl DpiEngineType {
@@ -26,20 +24,17 @@ impl DpiEngineType {
             DpiEngineType::Zapret => "zapret",
             DpiEngineType::ByeDpi => "byedpi",
             DpiEngineType::Warp => "warp",
-            DpiEngineType::Hybrid => "hybrid",
-            DpiEngineType::Chained => "chained",
-            DpiEngineType::None => "none",
         }
     }
 }
 
-impl fmt::Display for DpiEngineType {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+impl std::fmt::Display for DpiEngineType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", self.as_str())
     }
 }
 
-/// Происхождение стратегии.
+/// Происхождение стратегии
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum StrategyOrigin {
     Builtin,
@@ -48,113 +43,43 @@ pub enum StrategyOrigin {
     Manual,
 }
 
-impl StrategyOrigin {
-    pub fn as_str(&self) -> &'static str {
+impl std::fmt::Display for StrategyOrigin {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            StrategyOrigin::Builtin => "builtin",
-            StrategyOrigin::Evolved => "evolved",
-            StrategyOrigin::Imported => "imported",
-            StrategyOrigin::Manual => "manual",
+            StrategyOrigin::Builtin => write!(f, "builtin"),
+            StrategyOrigin::Evolved => write!(f, "evolved"),
+            StrategyOrigin::Imported => write!(f, "imported"),
+            StrategyOrigin::Manual => write!(f, "manual"),
         }
     }
 }
 
-/// Профиль DPI-движка — готовый набор аргументов для запуска.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct EngineProfile {
-    pub engine_type: DpiEngineType,
-    pub socks_port: u16,
-    pub filter_tcp: String,
-    pub filter_udp: String,
-    pub desync_mode: String,
-    pub split_pos: Option<String>,
-    pub disorder_pos: Option<String>,
-    pub fake_pos: Option<String>,
-    pub oob_pos: Option<String>,
-    pub disoob_pos: Option<String>,
-    pub tlsrec_pos: Option<String>,
-    pub fake_ttl: Option<u32>,
-    pub auto_ttl: bool,
-    pub md5sig: Option<bool>,
-    pub fake_tls_mod: Option<String>,
-    pub fake_sni: Option<String>,
-    pub fake_data: Option<String>,
-    pub mod_http: Option<String>,
-    pub tlsminor: Option<u32>,
-    pub hosts: Option<String>,
-    pub hostlist: Option<String>,
-    pub repeat_count: Option<u32>,
-    pub cache_ttl: Option<u32>,
-    pub auto: Option<String>,
-    pub timeout: Option<u32>,
-    pub auto_mode: Option<u32>,
-    pub desync_any_protocol: Option<String>,
-    pub desync_fooling: Option<String>,
-    pub fake_resend: Option<String>,
-    pub warp_config: Option<String>,
-    pub mtu: Option<u32>,
-    pub gool_enabled: bool,
-    pub psiphon_enabled: bool,
-    pub psiphon_country: Option<String>,
-    pub scan_enabled: bool,
-    pub reserved: Option<String>,
-    pub extra_args: Vec<String>,
-}
-
-impl EngineProfile {
-    /// Собирает CLI аргументы для запуска DPI-движка.
-    pub fn to_cli_args(&self) -> Vec<String> {
-        let mut args = Vec::new();
-        args.push("--dpi-desync".into());
-        args.push(self.desync_mode.clone());
-
-        if !self.filter_tcp.is_empty() {
-            args.push("--filter-tcp".into());
-            args.push(self.filter_tcp.clone());
-        }
-        if !self.filter_udp.is_empty() {
-            args.push("--filter-udp".into());
-            args.push(self.filter_udp.clone());
-        }
-        if let Some(ref v) = self.split_pos { args.push("--dpi-desync-split-pos".into()); args.push(v.clone()); }
-        if let Some(ref v) = self.disorder_pos { args.push("--dpi-desync-disorder-pos".into()); args.push(v.clone()); }
-        if let Some(ref v) = self.fake_pos { args.push("--dpi-desync-fake-pos".into()); args.push(v.clone()); }
-        if let Some(ref v) = self.oob_pos { args.push("--dpi-desync-oob-pos".into()); args.push(v.clone()); }
-        if let Some(ref v) = self.disoob_pos { args.push("--dpi-desync-disoob-pos".into()); args.push(v.clone()); }
-        if let Some(ref v) = self.tlsrec_pos { args.push("--dpi-desync-tlsrec-pos".into()); args.push(v.clone()); }
-        if let Some(v) = self.fake_ttl { args.push("--dpi-desync-ttl".into()); args.push(v.to_string()); }
-        if self.auto_ttl { args.push("--dpi-desync-autottl".into()); }
-        if let Some(true) = self.md5sig { args.push("--dpi-desync-md5sig".into()); }
-        if let Some(ref v) = self.fake_tls_mod { args.push("--dpi-desync-fake-tls-mod".into()); args.push(v.clone()); }
-        if let Some(ref v) = self.desync_fooling { args.push("--dpi-desync-fooling".into()); args.push(v.clone()); }
-        if let Some(v) = self.repeat_count { args.push("--dpi-desync-repeats".into()); args.push(v.to_string()); }
-        if let Some(ref v) = self.hostlist { args.push("--hostlist".into()); args.push(v.clone()); }
-
-        for extra in &self.extra_args {
-            if !extra.is_empty() {
-                args.push(extra.clone());
-            }
-        }
-
-        args
-    }
-}
-
-/// Геном стратегии DPI-обхода.
+/// Геном стратегии — полный набор параметров для DPI bypass.
+///
+/// Соответствует `StrategyGenome` из C# и `EngineProfile` из BSDPI.Core.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct StrategyGenome {
-    pub id: String,
-    pub parent_ids: Vec<String>,
+    /// Уникальный ID
+    pub id: Uuid,
+    /// ID родительских геномов (для evolved)
+    pub parent_ids: Vec<Uuid>,
+    /// Номер поколения
     pub generation: u32,
+    /// Происхождение
     pub origin: StrategyOrigin,
+
+    // === DPI Engine ===
+    /// Тип движка
     pub engine_type: DpiEngineType,
 
-    // DPI parameters
+    // === Zapret / ByeDPI общие ===
     pub filter_tcp: String,
     pub filter_udp: String,
+    /// Режим десинхронизации (split, fake, fakesplit, disorder, etc.)
     pub desync_mode: String,
-
-    pub split_pos: Option<u32>,
+    /// Позиция split (числовое значение)
+    pub split_pos: Option<i32>,
+    /// Позиция split (семантический маркер: host, endhost, midsld, sniext, endsld)
     pub split_pos_semantic: Option<String>,
     pub disorder_pos: Option<String>,
     pub fake_pos: Option<String>,
@@ -162,37 +87,43 @@ pub struct StrategyGenome {
     pub disoob_pos: Option<String>,
     pub tlsrec_pos: Option<String>,
 
-    pub fake_ttl: Option<u32>,
+    // === Zapret специфичные ===
+    pub fake_ttl: Option<i32>,
     pub auto_ttl: bool,
     pub md5sig: Option<bool>,
     pub fake_tls_mod: Option<String>,
     pub fake_sni: Option<String>,
     pub fake_data: Option<String>,
     pub mod_http: Option<String>,
-    pub tlsminor: Option<u32>,
+    pub tlsminor: Option<i32>,
     pub hosts: Option<String>,
     pub hostlist: Option<String>,
-    pub repeat_count: Option<u32>,
-    pub cache_ttl: Option<u32>,
-    pub auto: Option<String>,
-    pub timeout: Option<u32>,
-    pub auto_mode: Option<u32>,
+    pub repeat_count: Option<i32>,
+    pub cache_ttl: Option<i32>,
 
+    // === ByeDPI специфичные ===
+    pub auto: Option<String>,
+    pub timeout: Option<i32>,
+    pub auto_mode: Option<i32>,
+
+    // === Общие (Zapret + ByeDPI) ===
     pub desync_any_protocol: Option<String>,
     pub desync_fooling: Option<String>,
     pub fake_resend: Option<String>,
 
+    // === Warp специфичные ===
     pub warp_config: Option<String>,
-    pub mtu: Option<u32>,
+    pub mtu: Option<i32>,
     pub gool_enabled: bool,
     pub psiphon_enabled: bool,
     pub psiphon_country: Option<String>,
     pub scan_enabled: bool,
     pub reserved: Option<String>,
 
+    // === Дополнительные аргументы ===
     pub extra_args: Vec<String>,
 
-    // Metadata
+    // === Метаданные ===
     pub display_name: String,
     pub bat_file_name: Option<String>,
     pub source_bat_path: Option<String>,
@@ -203,13 +134,13 @@ pub struct StrategyGenome {
 }
 
 impl StrategyGenome {
-    /// Создаёт новый геном с дефолтными значениями.
-    pub fn new(engine_type: DpiEngineType, display_name: String) -> Self {
+    /// Создаёт новый геном со значениями по умолчанию.
+    pub fn new(engine_type: DpiEngineType, origin: StrategyOrigin) -> Self {
         Self {
-            id: uuid::Uuid::new_v4().to_string(),
+            id: Uuid::new_v4(),
             parent_ids: Vec::new(),
             generation: 0,
-            origin: StrategyOrigin::Builtin,
+            origin,
             engine_type,
             filter_tcp: String::new(),
             filter_udp: String::new(),
@@ -247,7 +178,7 @@ impl StrategyGenome {
             scan_enabled: false,
             reserved: None,
             extra_args: Vec::new(),
-            display_name,
+            display_name: String::new(),
             bat_file_name: None,
             source_bat_path: None,
             created_at: Utc::now(),
@@ -257,58 +188,31 @@ impl StrategyGenome {
         }
     }
 
-    /// Преобразует геном в EngineProfile для запуска DPI-движка.
-    pub fn to_engine_profile(&self, socks_port: u16) -> EngineProfile {
-        EngineProfile {
-            engine_type: self.engine_type,
-            socks_port,
-            filter_tcp: self.filter_tcp.clone(),
-            filter_udp: self.filter_udp.clone(),
-            desync_mode: self.desync_mode.clone(),
-            split_pos: self.split_pos_semantic.clone()
-                .or_else(|| self.split_pos.map(|v| v.to_string())),
-            disorder_pos: self.disorder_pos.clone(),
-            fake_pos: self.fake_pos.clone(),
-            oob_pos: self.oob_pos.clone(),
-            disoob_pos: self.disoob_pos.clone(),
-            tlsrec_pos: self.tlsrec_pos.clone(),
-            fake_ttl: self.fake_ttl,
-            auto_ttl: self.auto_ttl,
-            md5sig: self.md5sig,
-            fake_tls_mod: self.fake_tls_mod.clone(),
-            fake_sni: self.fake_sni.clone(),
-            fake_data: self.fake_data.clone(),
-            mod_http: self.mod_http.clone(),
-            tlsminor: self.tlsminor,
-            hosts: self.hosts.clone(),
-            hostlist: self.hostlist.clone(),
-            repeat_count: self.repeat_count,
-            cache_ttl: self.cache_ttl,
-            auto: self.auto.clone(),
-            timeout: self.timeout,
-            auto_mode: self.auto_mode,
-            desync_any_protocol: self.desync_any_protocol.clone(),
-            desync_fooling: self.desync_fooling.clone(),
-            fake_resend: self.fake_resend.clone(),
-            warp_config: self.warp_config.clone(),
-            mtu: self.mtu,
-            gool_enabled: self.gool_enabled,
-            psiphon_enabled: self.psiphon_enabled,
-            psiphon_country: self.psiphon_country.clone(),
-            scan_enabled: self.scan_enabled,
-            reserved: self.reserved.clone(),
-            extra_args: self.extra_args.clone(),
-        }
+    /// Создаёт стандартный геном для Zapret с параметрами по умолчанию.
+    pub fn default_zapret() -> Self {
+        let mut g = Self::new(DpiEngineType::Zapret, StrategyOrigin::Builtin);
+        g.desync_mode = "split".into();
+        g.filter_tcp = "80".into();
+        g.filter_udp = "443".into();
+        g.display_name = "zapret-default".into();
+        g
     }
-}
 
-impl fmt::Display for StrategyGenome {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(
-            f,
-            "Genome[{} | engine={} | gen={} | {:?}]",
-            self.display_name, self.engine_type, self.generation, self.origin
-        )
+    /// Создаёт стандартный геном для ByeDPI.
+    pub fn default_byedpi() -> Self {
+        let mut g = Self::new(DpiEngineType::ByeDpi, StrategyOrigin::Builtin);
+        g.desync_mode = "split".into();
+        g.disorder_pos = Some("1+s".into());
+        g.display_name = "byedpi-default".into();
+        g
+    }
+
+    /// Создаёт стандартный геном для Warp.
+    pub fn default_warp() -> Self {
+        let mut g = Self::new(DpiEngineType::Warp, StrategyOrigin::Builtin);
+        g.mtu = Some(1280);
+        g.display_name = "warp-default".into();
+        g
     }
 }
 
@@ -317,74 +221,56 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_genome_creation() {
-        let g = StrategyGenome::new(DpiEngineType::Zapret, "TestGenome".into());
+    fn test_new_genome_has_unique_id() {
+        let a = StrategyGenome::new(DpiEngineType::Zapret, StrategyOrigin::Builtin);
+        let b = StrategyGenome::new(DpiEngineType::Zapret, StrategyOrigin::Builtin);
+        assert_ne!(a.id, b.id);
+    }
+
+    #[test]
+    fn test_default_zapret() {
+        let g = StrategyGenome::default_zapret();
         assert_eq!(g.engine_type, DpiEngineType::Zapret);
-        assert_eq!(g.display_name, "TestGenome");
-        assert_eq!(g.generation, 0);
         assert_eq!(g.origin, StrategyOrigin::Builtin);
-        assert!(!g.id.is_empty());
+        assert_eq!(g.desync_mode, "split");
+        assert_eq!(g.filter_tcp, "80");
+        assert_eq!(g.filter_udp, "443");
     }
 
     #[test]
-    fn test_genome_to_engine_profile() {
-        let mut g = StrategyGenome::new(DpiEngineType::Zapret, "Test".into());
-        g.filter_tcp = "443".into();
-        g.filter_udp = "443".into();
-        g.desync_mode = "fake".into();
-        g.fake_ttl = Some(64);
-        g.auto_ttl = true;
-        g.repeat_count = Some(3);
-
-        let profile = g.to_engine_profile(1080);
-        assert_eq!(profile.engine_type, DpiEngineType::Zapret);
-        assert_eq!(profile.socks_port, 1080);
-        assert_eq!(profile.filter_tcp, "443");
-        assert_eq!(profile.fake_ttl, Some(64));
-        assert!(profile.auto_ttl);
+    fn test_default_byedpi() {
+        let g = StrategyGenome::default_byedpi();
+        assert_eq!(g.engine_type, DpiEngineType::ByeDpi);
+        assert_eq!(g.disorder_pos, Some("1+s".into()));
     }
 
     #[test]
-    fn test_engine_profile_cli_args() {
-        let mut g = StrategyGenome::new(DpiEngineType::Zapret, "Test".into());
-        g.desync_mode = "split".into();
-        g.filter_tcp = "443".into();
-        g.auto_ttl = true;
-        g.disorder_pos = Some("3".into());
-        g.repeat_count = Some(2);
-
-        let profile = g.to_engine_profile(1080);
-        let args = profile.to_cli_args();
-
-        assert!(args.contains(&"--dpi-desync".into()));
-        assert!(args.contains(&"split".into()));
-        assert!(args.contains(&"--filter-tcp".into()));
-        assert!(args.contains(&"443".into()));
-        assert!(args.contains(&"--dpi-desync-autottl".into()));
-        assert!(args.contains(&"--dpi-desync-disorder-pos".into()));
-        assert!(args.contains(&"--dpi-desync-repeats".into()));
+    fn test_default_warp() {
+        let g = StrategyGenome::default_warp();
+        assert_eq!(g.engine_type, DpiEngineType::Warp);
+        assert_eq!(g.mtu, Some(1280));
     }
 
     #[test]
-    fn test_genome_display() {
-        let g = StrategyGenome::new(DpiEngineType::ByeDpi, "MyStrategy".into());
-        let display = format!("{}", g);
-        assert!(display.contains("MyStrategy"));
-        assert!(display.contains("byedpi"));
+    fn test_engine_type_display() {
+        assert_eq!(DpiEngineType::Zapret.to_string(), "zapret");
+        assert_eq!(DpiEngineType::ByeDpi.to_string(), "byedpi");
+        assert_eq!(DpiEngineType::Warp.to_string(), "warp");
     }
 
     #[test]
-    fn test_genome_unique_ids() {
-        let g1 = StrategyGenome::new(DpiEngineType::Zapret, "A".into());
-        let g2 = StrategyGenome::new(DpiEngineType::Zapret, "B".into());
-        assert_ne!(g1.id, g2.id);
+    fn test_strategy_origin_display() {
+        assert_eq!(StrategyOrigin::Builtin.to_string(), "builtin");
+        assert_eq!(StrategyOrigin::Evolved.to_string(), "evolved");
     }
 
     #[test]
-    fn test_dpi_engine_type_as_str() {
-        assert_eq!(DpiEngineType::Zapret.as_str(), "zapret");
-        assert_eq!(DpiEngineType::ByeDpi.as_str(), "byedpi");
-        assert_eq!(DpiEngineType::Warp.as_str(), "warp");
-        assert_eq!(DpiEngineType::None.as_str(), "none");
+    fn test_genome_serialization_roundtrip() {
+        let g = StrategyGenome::default_zapret();
+        let json = serde_json::to_string(&g).unwrap();
+        let deserialized: StrategyGenome = serde_json::from_str(&json).unwrap();
+        assert_eq!(g.id, deserialized.id);
+        assert_eq!(g.engine_type, deserialized.engine_type);
+        assert_eq!(g.desync_mode, deserialized.desync_mode);
     }
 }
