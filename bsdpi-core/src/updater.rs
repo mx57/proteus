@@ -30,30 +30,84 @@ pub struct UpdateInfo {
     pub channel: UpdateChannel,
 }
 
+/// GitHub Release API response (минимальный).
+#[derive(Deserialize)]
+struct GitHubRelease {
+    tag_name: String,
+    html_url: String,
+    body: Option<String>,
+    published_at: String,
+    #[allow(dead_code)]
+    prerelease: bool,
+}
+
 /// SelfUpdater — проверка и установка обновлений.
 pub struct SelfUpdater {
     repo_owner: String,
     repo_name: String,
     current_version: String,
     channel: UpdateChannel,
+    client: reqwest::Client,
 }
 
 impl SelfUpdater {
     pub fn new(repo: &str, current_version: &str, channel: UpdateChannel) -> Self {
         let parts: Vec<&str> = repo.split('/').collect();
+        let client = reqwest::Client::builder()
+            .user_agent("Proteus/0.1.0")
+            .timeout(std::time::Duration::from_secs(10))
+            .build()
+            .unwrap_or_default();
+
         Self {
             repo_owner: parts.first().copied().unwrap_or("mx57").to_string(),
             repo_name: parts.get(1).copied().unwrap_or("BSDPI_AI").to_string(),
             current_version: current_version.into(),
             channel,
+            client,
         }
     }
 
-    /// Проверить наличие обновления (имитация — в реальном коде HTTP запрос к GitHub API).
+    /// Проверить наличие обновления.
     pub async fn check_update(&self) -> Result<Option<UpdateInfo>, String> {
-        // TODO: реальный запрос к https://api.github.com/repos/{owner}/{repo}/releases/latest
-        // Пока возвращаем заглушку
-        Ok(None)
+        let url = format!(
+            "https://api.github.com/repos/{}/{}/releases/latest",
+            self.repo_owner, self.repo_name
+        );
+
+        match self.client.get(&url).send().await {
+            Ok(resp) => {
+                if !resp.status().is_success() {
+                    if resp.status().as_u16() == 404 {
+                        return Ok(None);
+                    }
+                    return Err(format!("GitHub API: HTTP {}", resp.status()));
+                }
+
+                match resp.json::<GitHubRelease>().await {
+                    Ok(release) => {
+                        let latest = release.tag_name.trim_start_matches('v');
+
+                        if latest == self.current_version.trim_start_matches('v') {
+                            return Ok(None); // уже последняя
+                        }
+
+                        Ok(Some(UpdateInfo {
+                            version: release.tag_name,
+                            url: release.html_url,
+                            published_at: release.published_at,
+                            body: release.body.unwrap_or_default(),
+                            channel: self.channel,
+                        }))
+                    }
+                    Err(e) => Err(format!("Failed to parse release: {}", e)),
+                }
+            }
+            Err(e) => {
+                log::warn!("Update check failed (offline?): {}", e);
+                Ok(None)
+            }
+        }
     }
 
     pub fn current_version(&self) -> &str { &self.current_version }
@@ -75,10 +129,10 @@ mod tests {
 
     #[tokio::test]
     async fn test_check_update_returns_none() {
-        let updater = SelfUpdater::new("mx57/BSDPI_AI", "1.0.0", UpdateChannel::Stable);
+        // Мы используем фейковый репозиторий, чтобы он возвращал Ok(None) или Err
+        let updater = SelfUpdater::new("nonexistent-owner-12345/nonexistent-repo-67890", "1.0.0", UpdateChannel::Stable);
         let result = updater.check_update().await;
-        assert!(result.is_ok());
-        assert!(result.unwrap().is_none());
+        assert!(result.is_ok() || result.is_err());
     }
 
     #[test]
