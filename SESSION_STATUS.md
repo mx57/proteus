@@ -29,7 +29,7 @@
 | 4 | **Android JNI** (bsdpi-android) | 🟡 Stub | — | Требуется NDK |
 | 5 | **GUI** (bsdpi-gui) | ✅ DONE | — | 6 табов: Main, AI, Engine, Chains, Settings, Logs |
 | 6 | **CLI** (bsdpi-cli) | ✅ DONE | ✅ 2 | 8 команд: start, stop, probe, evolve, bandit, config, update, status |
-| 7 | Updater (bsdpi-updater) | ⬜ | — | Stub (логика обновлений в bsdpi-cli) |
+| 7 | Updater (bsdpi-core / bsdpi-cli) | ✅ DONE | — | Логика обновлений GitHub реализована в bsdpi-core/SelfUpdater и интегрирована в CLI |
 
 ---
 

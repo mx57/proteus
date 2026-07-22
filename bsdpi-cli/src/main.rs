@@ -17,8 +17,7 @@
 //! ```
 
 use clap::{Parser, Subcommand};
-
-mod updater;
+use bsdpi_core::updater::{SelfUpdater, UpdateChannel};
 
 /// Proteus — AI DPI Bypass CLI
 #[derive(Parser)]
@@ -193,14 +192,14 @@ async fn cmd_config(action: &str, set: &Option<String>) {
     match action {
         "show" => {
             println!("🔧 Proteus — Configuration:");
-            println!("{:<30} {}", "engine_dir", "engine/");
-            println!("{:<30} {}", "socks_port", "1080");
-            println!("{:<30} {}", "auto_start", "true");
-            println!("{:<30} {}", "check_interval_secs", "30");
-            println!("{:<30} {}", "evolution_interval_mins", "60");
-            println!("{:<30} {}", "log_level", "info");
-            println!("{:<30} {}", "auto_update", "true");
-            println!("{:<30} {}", "update_channel", "stable");
+            println!("{:<30} engine/", "engine_dir");
+            println!("{:<30} 1080", "socks_port");
+            println!("{:<30} true", "auto_start");
+            println!("{:<30} 30", "check_interval_secs");
+            println!("{:<30} 60", "evolution_interval_mins");
+            println!("{:<30} info", "log_level");
+            println!("{:<30} true", "auto_update");
+            println!("{:<30} stable", "update_channel");
         }
         "set" => {
             if let Some(kv) = set {
@@ -220,13 +219,13 @@ async fn cmd_config(action: &str, set: &Option<String>) {
 async fn cmd_update(_apply: bool) {
     println!("📦 Proteus — checking for updates...");
 
-    let updater = updater::ProteusUpdater::new("mx57", "proteus", "0.1.0");
+    let updater = SelfUpdater::new("mx57/proteus", "0.1.0", UpdateChannel::Stable);
 
-    match updater.check().await {
+    match updater.check_update().await {
         Ok(Some(release)) => {
-            println!("  Current version: {}", release.current_version);
-            println!("  Latest version:  {}", release.latest_version);
-            println!("  Download:        {}", release.download_url);
+            println!("  Current version: {}", updater.current_version());
+            println!("  Latest version:  {}", release.version);
+            println!("  Download:        {}", release.url);
             println!("\n⚠️  Update available! Run `proteus update --apply` to install.");
         }
         Ok(None) => {
@@ -241,7 +240,7 @@ async fn cmd_update(_apply: bool) {
 async fn cmd_status() {
     println!("📊 Proteus — System Status");
     println!("{}", "═".repeat(40));
-    println!("🔧 Version:     {}", "0.1.0");
+    println!("🔧 Version:     0.1.0");
     println!("⚡ Engine:      Stopped");
     println!("🎯 Mode:        zapret");
     println!("🧠 Evolutions:  42");
