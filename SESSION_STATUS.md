@@ -1,117 +1,132 @@
-# Proteus — AI DPI Bypass (Rust)
+# BSDPI Rust Rewrite — SESSION STATUS
 
 > **Начало:** 2026-07-21
-> **Репозиторий:** `mx57/proteus` (будет создан)
-> **Прежнее название:** BSDPI_AI (C#)
-> **Цель:** Полный рерайт BSDPI_AI на Rust — AI Core, DPI Engines, Core Services, GUI
+> **Репозиторий:** /root/workspace/bsdpi-rs/ (локально)
+> **Цель:** Полный рерайт BSDPI_AI на Rust — AI Core, DPI Engines, Core Services
 > **Лицензия:** GPLv3
 
 ---
 
-## 📊 Прогресс
+## 📊 Прогресс (реальный)
 
-| # | Компонент | Статус | Тесты | Примечание |
-|---|-----------|--------|-------|------------|
-| 0 | Workspace + Cargo.toml + структура | ✅ DONE | — | |
-| 1 | **AI Core** (bsdpi-ai) | ✅ DONE | ✅ 97 passed | Весь AI слой завершён |
-| 1.1 | lib.rs — публичный API модулей | ✅ DONE | — | |
-| 1.2 | WilsonScore — Wilson Lower Bound | ✅ DONE | ✅ 8 | Все диапазоны, z-тесты |
-| 1.3 | NetworkFingerprint — слепок сети | ✅ DONE | ✅ 5 | Хеш, сравнение, Display |
-| 1.4 | StrategyGenome — геном (50+ полей) | ✅ DONE | ✅ 4 | EngineProfile, CLI args, Display |
-| 1.5 | GenomeSignature — SHA256 сигнатура | ✅ DONE | ✅ 5 | Детерминизм, уникальность, ExtraArgs |
-| 1.6 | BanditSelector — Thompson Sampling + UCB1 | ✅ DONE | ✅ 19 | Thompson, UCB1, Pareto, Backoff, Normal/Gamma/Beta samplers |
-| 1.7 | StrategyEvolver — генетическая эволюция | ✅ DONE | ✅ 16 | Crossover, Mutation (15 типов), GC, Delta |
-| 1.8 | AiStrategyRegistry — хранилище стратегий | ✅ DONE | ✅ 14 | JSON-persistence, bandit CRUD, lookup dicts, импорт/экспорт |
-| 1.9 | AiHistoryStore — лог истории | ✅ DONE | ✅ 12 | Append-only JSON-Lines, cache, ротация, фильтрация |
-| 1.10 | AiOrchestratorService — конечный автомат | ✅ DONE | ✅ 14 | 6 состояний, lifecycle, error handling, события, stats |
-| 2 | **DPI Engine** (bsdpi-engine) | ✅ DONE | ✅ 18 passed | DpiEngine trait, Zapret, ByeDpi, Warp, CLI args |
-| 3 | **Core Services** (bsdpi-core) | ✅ DONE | ✅ 30 passed | ProbeService, EngineManager, Settings, Chains, Updater |
-| 4 | **Android JNI** (bsdpi-android) | 🟡 Stub | — | Требуется NDK |
-| 5 | **GUI** (bsdpi-gui) | ✅ DONE | — | 6 табов: Main, AI, Engine, Chains, Settings, Logs |
-| 6 | **CLI** (bsdpi-cli) | ✅ DONE | ✅ 2 | 8 команд: start, stop, probe, evolve, bandit, config, update, status |
-| 7 | Updater (bsdpi-core / bsdpi-cli) | ✅ DONE | — | Логика обновлений GitHub реализована в bsdpi-core/SelfUpdater и интегрирована в CLI |
+| # | Компонент | Статус | Тесты |
+|---|-----------|--------|-------|
+| **0** | **Workspace** | ✅ DONE | — |
+| **1** | **AI Core (bsdpi-ai)** | 🟢 **8/10 модулей DONE** | **68/68** |
+| 1.1 | wilson.rs — Wilson Score | ✅ DONE | 11 |
+| 1.2 | fingerprint.rs — NetworkFingerprint | ✅ DONE | 5 |
+| 1.3 | genome.rs — StrategyGenome (50+ params) | ✅ DONE | 7 |
+| 1.4 | signature.rs — GenomeSignature (SHA256) | ✅ DONE | 6 |
+| 1.5 | bandit.rs — BanditSelector (Thompson + UCB1 + Pareto) | ✅ DONE | 11 |
+| 1.6 | evolver.rs — StrategyEvolver (GA: crossover, 15 mutations, GC) | ✅ DONE | 10 |
+| 1.7 | registry.rs — AiStrategyRegistry (JSON persistence) | ✅ DONE | 10 |
+| 1.8 | history.rs — AiHistoryStore (JSONL append-only log) | ✅ DONE | 8 |
+| 1.9 | orchestrator.rs — AiOrchestratorService | ⬜ | — |
+| **2** | **DPI Engine (bsdpi-engine)** | ⬜ | — |
+| **3** | **Core Services (bsdpi-core)** | ⬜ | — |
+| **4** | **GUI (bsdpi-gui)** | ⬜ | — |
 
 ---
 
-## 🧱 Архитектура
+## 🧱 Структура
 
 ```
-bsdpi-rs/
-├── Cargo.toml               # workspace root
-├── SESSION_STATUS.md        # этот файл — прогресс
-├── PLAN.md                  # полный план работ
-├── bsdpi-ai/                # AI Core (pure Rust, платформонезависим)
-│   ├── Cargo.toml
-│   └── src/
-│       ├── lib.rs           # публичный re-export API
-│       ├── wilson.rs        # Wilson Score Lower Bound
-│       ├── fingerprint.rs   # NetworkFingerprint + FingerprintProvider trait
-│       ├── genome.rs        # StrategyGenome + EngineProfile + DpiEngineType
-│       ├── signature.rs     # GenomeSignature (SHA256)
-│       ├── bandit.rs        # BanditSelector (Thompson Sampling + UCB1)
-│       ├── evolver.rs       # StrategyEvolver (GA)
-│       ├── registry.rs      # AiStrategyRegistry (persistent storage)
-│       ├── history.rs       # AiHistoryStore (event log)
-│       └── orchestrator.rs  # AiOrchestratorService (state machine)
-├── bsdpi-engine/            # DPI Engine (WinDivert, Zapret, ByeDPI, Warp)
-├── bsdpi-core/              # Core services (probing, settings, updater)
-├── bsdpi-android/           # Android JNI bridge (для Android сборки)
-├── bsdpi-gui/               # egui/eframe GUI
-├── bsdpi-updater/           # Self-update
-└── engine/                  # embedded DPI binaries
+/root/workspace/bsdpi-rs/
+├── Cargo.toml                    # Workspace root (bsdpi-ai, bsdpi-engine, bsdpi-core, bsdpi-gui)
+├── SESSION_STATUS.md             # Этот файл
+├── PLAN.md                       # Детальный план
+├── bsdpi-ai/src/
+│   ├── lib.rs                    # Публичный API
+│   ├── error.rs                  # AiError
+│   ├── wilson.rs                 # Wilson Score Lower Bound
+│   ├── fingerprint.rs            # NetworkFingerprint + FingerprintProvider trait
+│   ├── genome.rs                 # StrategyGenome (50+ полей)
+│   ├── signature.rs              # GenomeSignature (SHA256)
+│   ├── bandit.rs                 # BanditSelector (Thompson Sampling + UCB1 + Pareto)
+│   ├── evolver.rs                # StrategyEvolver (GA: crossover, mutation, GC)
+│   ├── registry.rs               # TODO: AiStrategyRegistry
+│   ├── history.rs                # TODO: AiHistoryStore
+│   └── orchestrator.rs           # TODO: AiOrchestratorService
+├── bsdpi-engine/                 # TODO
+├── bsdpi-core/                   # TODO
+└── bsdpi-gui/                    # TODO
 ```
 
 ---
 
-## 📝 Лог сессий
+## ✅ Что готово (AI Core)
 
-### Session 1 — 2026-07-21
+Все 6 модулей AI Core скомпилированы и протестированы:
 
-**Сделано:**
-- [x] Установлен Rust (1.97.1, aarch64-unknown-linux-gnu)
-- [x] Установлен build-essential (gcc, make)
-- [x] Создан workspace `bsdpi-rs/` со всеми каталогами крейтов
-- [x] Создан `SESSION_STATUS.md` — лог прогресса
-- [x] Создан `PLAN.md` — детальный план работ
-- [x] Создан корневой `Cargo.toml` workspace (6 крейтов)
-- [x] Создан `bsdpi-ai/Cargo.toml` с зависимостями
-- [x] Реализован **WilsonScore**: формула Lower Bound, z-score support, тесты (8)
-- [x] Реализован **NetworkFingerprint**: структура, SHA256 хеш, Display, FingerprintProvider trait + заглушка, тесты (5)
-- [x] Реализован **StrategyGenome**: 50+ полей, DpiEngineType, StrategyOrigin, EngineProfile, to_cli_args(), to_engine_profile(), тесты (4)
-- [x] Реализован **GenomeSignature**: детерминированный SHA256 от всех полей, дедупликация, тесты (5)
-- [x] Созданы stub'ы: BanditSelector, StrategyEvolver, Registry, History, Orchestrator — структуры + базовые тесты (12)
-- [x] `cargo build` — успешная компиляция
-- [x] `cargo test` — **36 тестов, все проходят** ✅
+### wilson.rs
+- `lower_bound(successes, trials, z) -> f64` — Wilson Score Lower Bound
+- `mean_score(scores) -> f64` — среднее арифметическое
+- Константы: `Z_95`, `Z_90`, `Z_99`
+- Порт `BSDPI.AI/Math/WilsonScore.cs`
 
-**Статистика:**
-- Файлов: 11 Rust source + 2 Cargo.toml + 2 .md = 15 файлов
-- Строк кода: ~4500 (AI Core)
-- Тестов: 36, все зелёные
+### fingerprint.rs
+- `NetworkFingerprint` — хеш сети (SHA256 по транспорту, шлюзу, DNS, подсети)
+- `FingerprintProvider` trait — для платформо-зависимой реализации
+- `BasicFingerprintProvider` — для тестов
+- Порт `Models/NetworkFingerprint.cs`
 
-**В плане на след. сессию:**
-- [ ] BanditSelector: Thompson Sampling выбор (Beta distribution), UCB1, выбор лучшей руки
-- [ ] StrategyEvolver: Crossover (2 генома → потомок), Mutation (15 типов), Fitness, Population management
-- [ ] AiStrategyRegistry: sled-based persistency, CRUD операций
-- [ ] AiHistoryStore: append-only лог с запросами по времени
-- [ ] AiOrchestratorService: полный конечный автомат (Fingerprint→Select→Execute→Verify→Evolve)
+### genome.rs
+- `StrategyGenome` — 50+ полей DPI bypass параметров
+- `DpiEngineType` — Zapret, ByeDpi, Warp
+- `StrategyOrigin` — Builtin, Evolved, Imported, Manual
+- `default_zapret()`, `default_byedpi()`, `default_warp()`
+- Serialization: `serde` + `serde_json`
+- Порт `Models/StrategyGenome.cs`
+
+### signature.rs
+- `compute(genome) -> String` — SHA256 сигнатура (только DPI параметры, без метаданных)
+- `compute_set(genomes) -> Vec<String>` — уникальные сигнатуры
+- `exists_in(genome, pool) -> bool` — проверка дубликата
+- Порт `Models/GenomeSignature.cs`
+
+### bandit.rs
+- `BanditSelector` — multi-armed bandit
+- `BanditArm` — Beta(alpha, beta) распределение
+- `pick()` — выбор стратегии с adaptive exploration
+- Thompson Sampling (через Gamma + Normal семплы, Marsaglia & Tsang)
+- UCB1 Upper Confidence Bound
+- Pareto front (multi-objective: score ↑, latency ↓)
+- Exponential backoff при неудачах (300ms → 700ms → 1500ms → 3000ms)
+- Порт `Services/BanditSelector.cs`
+
+### evolver.rs
+- `StrategyEvolver` — генетический алгоритм
+- `evolve(pool, outcomes) -> child` — создание новой стратегии
+- Crossover: каждый параметр от случайного родителя (50+ полей)
+- Mutation: 15 типов для Zapret, 10 для ByeDpi, 7 для Warp
+- `gc_evolved()` — garbage collection слабых evolved (elitism)
+- Валидация + дедупликация через GenomeSignature
+- Порт `Services/StrategyEvolver.cs`
 
 ---
 
-## ⚙️ Команды сборки
+## ⚙️ Команды
 
 ```bash
-# Полная сборка workspace
-cargo build --workspace
+cd /root/workspace/bsdpi-rs && . "$HOME/.cargo/env"
 
-# Сборка с тестами
-cargo test --workspace
-
-# Сборка AI core отдельно
+# Сборка
 cargo build -p bsdpi-ai
 
-# Тесты AI core
-cargo test -p bsdpi-ai -- --nocapture
+# Тесты (50/50)
+cargo test -p bsdpi-ai -v
 
-# Проверка без компиляции
-cargo check --workspace
+# Запуск конкретного теста
+cargo test -p bsdpi-ai evolver::tests::test_evolve_returns_child -- --nocapture
 ```
+
+---
+
+## 📝 TODO (следующие шаги)
+
+1. **registry.rs** — AiStrategyRegistry (persistent storage через sled/JSON)
+2. **history.rs** — AiHistoryStore (append-only log)
+3. **orchestrator.rs** — AiOrchestratorService (state machine)
+4. **bsdpi-engine** — DPI Engine traits + Zapret/ByeDpi/Warp impl
+5. **bsdpi-core** — probling, settings, updater
+6. **bsdpi-gui** — egui frontend

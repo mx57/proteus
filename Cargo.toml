@@ -4,10 +4,7 @@ members = [
     "bsdpi-ai",
     "bsdpi-engine",
     "bsdpi-core",
-    "bsdpi-android",
     "bsdpi-gui",
-    "bsdpi-updater",
-    "bsdpi-cli",
 ]
 
 [workspace.dependencies]

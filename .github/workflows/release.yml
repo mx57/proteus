@@ -1,0 +1,168 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+  packages: write
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build-windows:
+    name: Windows x64
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target/
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Build
+        run: cargo build --release --workspace
+
+      - name: Create portable archive
+        shell: bash
+        run: |
+          VERSION=${GITHUB_REF#refs/tags/v}
+          DIR="proteus-${VERSION}-windows-x64"
+          mkdir -p "$DIR/engine/bin"
+          mkdir -p "$DIR/engine/lists"
+          mkdir -p "$DIR/engine/utils"
+          cp target/release/proteus.exe "$DIR/"
+          cp README.md "$DIR/"
+          cp LICENSE "$DIR/"
+          echo "# Proteus engine directory" > "$DIR/engine/README.md"
+          echo "Place winws.exe, WinDivert.dll, and other engine files here." >> "$DIR/engine/README.md"
+          7z a "${DIR}.zip" "$DIR/"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: proteus-windows-x64
+          path: "*.zip"
+
+  build-linux:
+    name: Linux x64 + aarch64
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        target: [x86_64-unknown-linux-gnu, aarch64-unknown-linux-gnu]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Install cross-compilation tools
+        if: matrix.target == 'aarch64-unknown-linux-gnu'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-aarch64-linux-gnu
+          echo "CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER=aarch64-linux-gnu-gcc" >> $GITHUB_ENV
+
+      - name: Cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target/
+          key: ${{ runner.os }}-${{ matrix.target }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Build
+        run: cargo build --release -p bsdpi-cli --target ${{ matrix.target }}
+
+      - name: Create portable archive
+        run: |
+          VERSION=${GITHUB_REF#refs/tags/v}
+          ARCH=${{ matrix.target }}
+          SHORT_NAME="linux-${ARCH%%-*}"
+          DIR="proteus-${VERSION}-${SHORT_NAME}"
+          mkdir -p "$DIR/engine/bin" "$DIR/engine/lists" "$DIR/engine/utils"
+          cp target/${ARCH}/release/proteus "$DIR/"
+          chmod +x "$DIR/proteus"
+          cp README.md "$DIR/"
+          cp LICENSE "$DIR/"
+          echo "# Proteus engine directory" > "$DIR/engine/README.md"
+          tar czf "${DIR}.tar.gz" "$DIR/"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: proteus-linux-${{ matrix.target }}
+          path: "*.tar.gz"
+
+  build-macos:
+    name: macOS aarch64
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-darwin
+
+      - name: Cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target/
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Build
+        run: cargo build --release -p bsdpi-cli --target aarch64-apple-darwin
+
+      - name: Create portable archive
+        run: |
+          VERSION=${GITHUB_REF#refs/tags/v}
+          DIR="proteus-${VERSION}-macos-aarch64"
+          mkdir -p "$DIR/engine/bin" "$DIR/engine/lists" "$DIR/engine/utils"
+          cp target/aarch64-apple-darwin/release/proteus "$DIR/"
+          chmod +x "$DIR/proteus"
+          cp README.md "$DIR/"
+          cp LICENSE "$DIR/"
+          echo "# Proteus engine directory" > "$DIR/engine/README.md"
+          tar czf "${DIR}.tar.gz" "$DIR/"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: proteus-macos-aarch64
+          path: "*.tar.gz"
+
+  create-release:
+    name: Create GitHub Release
+    needs: [build-windows, build-linux, build-macos]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+
+      - name: Create release
+        uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+          draft: false
+          prerelease: false
+          files: |
+            proteus-windows-x64/*.zip
+            proteus-linux-x86_64-unknown-linux-gnu/*.tar.gz
+            proteus-linux-aarch64-unknown-linux-gnu/*.tar.gz
+            proteus-macos-aarch64/*.tar.gz

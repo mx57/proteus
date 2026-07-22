@@ -1,384 +1,375 @@
-//! AiHistoryStore — лог истории проверок AI-оркестратора.
+//! AiHistoryStore — append-only лог истории испытаний.
 //!
-//! Порт C# `BSDPI.AI/Services/AiHistoryStore.cs`:
-//! - Append-only JSON-Lines файл
-//! - In-memory cache для быстрых чтений
-//! - Фильтрация по genome, network, временному окну
-//! - Ротация старых записей
+//! Хранит каждое испытание как JSONL строку. Поддерживает загрузку
+//! по сети, по геному, агрегированную статистику.
+//!
+//! ## C# оригинал
+//! `BSDPI.AI/Services/AiHistoryStore.cs`
 
-use std::sync::{Arc, Mutex};
-use std::path::Path;
-
-use serde::{Deserialize, Serialize};
+use crate::error::AiError;
 use chrono::{DateTime, Utc};
+use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
+use std::fs::{self, OpenOptions};
+use std::io::{BufRead, BufReader, Write};
+use std::path::{Path, PathBuf};
+use uuid::Uuid;
 
-/// Результат проверки стратегии.
+/// Одна запись истории испытания.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ProbeOutcome {
-    pub genome_id: String,
-    pub network_hash: String,
-    pub timestamp: DateTime<Utc>,
-    pub score: u32,
-    pub success_rate: f64,
-    pub avg_latency_ms: f64,
-    pub process_stable: bool,
-    pub failed_target_keys: Vec<String>,
-    pub failure_signature: Option<String>,
-}
-
-impl ProbeOutcome {
-    pub fn new(genome_id: String, network_hash: String) -> Self {
-        Self {
-            genome_id,
-            network_hash,
-            timestamp: Utc::now(),
-            score: 0,
-            success_rate: 0.0,
-            avg_latency_ms: 0.0,
-            process_stable: true,
-            failed_target_keys: Vec::new(),
-            failure_signature: None,
-        }
-    }
-}
-
-/// Тип события (для лога).
-#[derive(Debug, Clone)]
-pub enum WorkEvent {
-    StrategySelected(String),
-    StrategySucceeded(String),
-    StrategyFailed(String),
-    EvolutionCompleted,
-    FingerprintChanged(String),
-}
-
-/// Результат работы.
-#[derive(Debug, Clone)]
-pub enum WorkResult {
-    Success,
-    Failure(String),
-    Skipped,
-}
-
-/// Запись истории.
-#[derive(Debug, Clone)]
 pub struct HistoryRecord {
-    pub id: String,
-    pub event: WorkEvent,
-    pub result: WorkResult,
+    /// ID генома, который тестировался
+    pub genome_id: Uuid,
+    /// Хеш сети
+    pub network_hash: String,
+    /// Оценка успеха (0-100)
+    pub score: i32,
+    /// Задержка в ms
+    pub latency_ms: f64,
+    /// Отметка времени
     pub timestamp: DateTime<Utc>,
+    /// Произвольные метаданные (стратегия, ошибка и т.д.)
+    pub metadata: HashMap<String, String>,
 }
 
 impl HistoryRecord {
-    pub fn new(event: WorkEvent, result: WorkResult) -> Self {
+    pub fn new(
+        genome_id: Uuid,
+        network_hash: impl Into<String>,
+        score: i32,
+        latency_ms: f64,
+    ) -> Self {
         Self {
-            id: uuid::Uuid::new_v4().to_string(),
-            event,
-            result,
+            genome_id,
+            network_hash: network_hash.into(),
+            score,
+            latency_ms,
             timestamp: Utc::now(),
+            metadata: HashMap::new(),
         }
+    }
+
+    pub fn with_metadata(mut self, key: impl Into<String>, value: impl Into<String>) -> Self {
+        self.metadata.insert(key.into(), value.into());
+        self
     }
 }
 
-/// Хранилище истории проверок.
+/// Хранилище истории испытаний.
+///
+/// Использует JSONL формат (одна JSON строка на запись).
+/// Автоматически ротирует файл при превышении лимита (по умолчанию 100K записей).
 pub struct AiHistoryStore {
-    path: String,
-    inner: Arc<Mutex<HistoryInner>>,
-}
-
-struct HistoryInner {
-    cache: Option<Vec<ProbeOutcome>>,
+    file_path: PathBuf,
+    /// Записи в памяти (in-memory cache)
+    records: Vec<HistoryRecord>,
+    /// Максимальное число записей до ротации
+    max_records: usize,
+    dirty: bool,
 }
 
 impl AiHistoryStore {
-    pub fn new(path: String) -> Self {
+    /// Создать новое хранилище.
+    pub fn new(file_path: impl Into<PathBuf>, max_records: usize) -> Result<Self, AiError> {
+        let path: PathBuf = file_path.into();
+
+        let records = if path.exists() {
+            Self::load_from_file(&path)?
+        } else {
+            if let Some(parent) = path.parent() {
+                let _ = fs::create_dir_all(parent);
+            }
+            Vec::new()
+        };
+
+        Ok(Self {
+            file_path: path,
+            records,
+            max_records,
+            dirty: false,
+        })
+    }
+
+    /// Создать in-memory хранилище (без файла).
+    pub fn in_memory() -> Self {
         Self {
-            path,
-            inner: Arc::new(Mutex::new(HistoryInner { cache: None })),
+            file_path: PathBuf::new(),
+            records: Vec::new(),
+            max_records: 100_000,
+            dirty: false,
         }
     }
 
-    /// Добавить запись в лог (append).
-    pub fn append(&self, outcome: ProbeOutcome) {
-        let json = serde_json::to_string(&outcome).unwrap_or_default();
-        let mut inner = self.inner.lock().unwrap();
+    // ========== Write ==========
 
-        if let Some(dir) = Path::new(&self.path).parent() {
-            let _ = std::fs::create_dir_all(dir);
+    /// Добавить запись.
+    pub fn append(&mut self, record: HistoryRecord) -> Result<(), AiError> {
+        // Добавляем в память
+        self.records.push(record.clone());
+        self.dirty = true;
+
+        // Append в JSONL файл
+        if !self.file_path.as_os_str().is_empty() {
+            let line = serde_json::to_string(&record)
+                .map_err(|e| AiError::History(format!("serialization: {e}")))?;
+
+            let mut file = OpenOptions::new()
+                .create(true)
+                .append(true)
+                .open(&self.file_path)
+                .map_err(|e| AiError::History(format!("cannot open {:?}: {e}", self.file_path)))?;
+
+            writeln!(file, "{line}")
+                .map_err(|e| AiError::History(format!("cannot write: {e}")))?;
         }
 
-        // Append to file
-        if let Ok(mut file) = std::fs::OpenOptions::new()
-            .create(true)
-            .append(true)
-            .open(&self.path)
-        {
-            use std::io::Write;
-            let _ = writeln!(file, "{}", json);
+        // Ротация если превышен лимит
+        if self.records.len() > self.max_records {
+            self.rotate()?;
         }
 
-        // Update cache
-        if let Some(ref mut cache) = inner.cache {
-            cache.push(outcome);
-        }
+        Ok(())
     }
 
-    /// Загрузить записи за последний временной интервал.
-    pub fn load_recent(&self, window: chrono::Duration) -> Vec<ProbeOutcome> {
-        let cutoff = Utc::now() - window;
-        self.load_all().into_iter()
-            .filter(|o| o.timestamp >= cutoff)
+    // ========== Query ==========
+
+    /// Все записи.
+    pub fn all(&self) -> &[HistoryRecord] {
+        &self.records
+    }
+
+    /// Записи для конкретной сети.
+    pub fn for_network(&self, network_hash: &str) -> Vec<&HistoryRecord> {
+        self.records
+            .iter()
+            .filter(|r| r.network_hash == network_hash)
             .collect()
     }
 
-    /// Загрузить записи для конкретной стратегии на конкретной сети.
-    pub fn load_for(&self, genome_id: &str, network_hash: &str) -> Vec<ProbeOutcome> {
-        self.load_all().into_iter()
-            .filter(|o| o.genome_id == genome_id && o.network_hash == network_hash)
+    /// Записи для конкретного генома.
+    pub fn for_genome(&self, genome_id: &Uuid) -> Vec<&HistoryRecord> {
+        self.records
+            .iter()
+            .filter(|r| r.genome_id == *genome_id)
             .collect()
     }
 
-    /// Загрузить записи для сети.
-    pub fn load_for_network(&self, network_hash: &str) -> Vec<ProbeOutcome> {
-        self.load_all().into_iter()
-            .filter(|o| o.network_hash == network_hash)
+    /// Записи для генома на конкретной сети.
+    pub fn for_genome_on_network(&self, genome_id: &Uuid, network_hash: &str) -> Vec<&HistoryRecord> {
+        self.records
+            .iter()
+            .filter(|r| r.genome_id == *genome_id && r.network_hash == network_hash)
             .collect()
     }
 
-    /// Загрузить все записи (с кэшированием).
-    pub fn load_all(&self) -> Vec<ProbeOutcome> {
-        let mut inner = self.inner.lock().unwrap();
+    /// Получить `(genome_id, score)` пары для эволюции.
+    pub fn outcomes(&self) -> Vec<(Uuid, i32)> {
+        self.records
+            .iter()
+            .map(|r| (r.genome_id, r.score))
+            .collect()
+    }
 
-        if let Some(ref cache) = inner.cache {
-            return cache.clone();
+    /// Получить outcomes с latency для bandit.
+    pub fn outcomes_with_latency(&self) -> Vec<(Uuid, i32, f64)> {
+        self.records
+            .iter()
+            .map(|r| (r.genome_id, r.score, r.latency_ms))
+            .collect()
+    }
+
+    /// Записи для сети, как `(genome_id, score)`.
+    pub fn outcomes_for_network(&self, network_hash: &str) -> Vec<(Uuid, i32)> {
+        self.records
+            .iter()
+            .filter(|r| r.network_hash == network_hash)
+            .map(|r| (r.genome_id, r.score))
+            .collect()
+    }
+
+    /// Общее количество записей.
+    pub fn len(&self) -> usize {
+        self.records.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.records.is_empty()
+    }
+
+    /// Очистить все записи.
+    pub fn clear(&mut self) -> Result<(), AiError> {
+        self.records.clear();
+        self.dirty = true;
+
+        if !self.file_path.as_os_str().is_empty() {
+            fs::write(&self.file_path, "")
+                .map_err(|e| AiError::History(format!("cannot clear: {e}")))?;
         }
 
-        let path = Path::new(&self.path);
-        if !path.exists() {
-            inner.cache = Some(Vec::new());
-            return Vec::new();
+        Ok(())
+    }
+
+    // ========== Internal ==========
+
+    fn load_from_file(path: &Path) -> Result<Vec<HistoryRecord>, AiError> {
+        let file = fs::File::open(path)
+            .map_err(|e| AiError::History(format!("cannot open {path:?}: {e}")))?;
+
+        let reader = BufReader::new(file);
+        let mut records = Vec::new();
+
+        for (line_num, line) in reader.lines().enumerate() {
+            let line = line.map_err(|e| {
+                AiError::History(format!("read error at line {}: {e}", line_num + 1))
+            })?;
+
+            if line.trim().is_empty() {
+                continue;
+            }
+
+            let record: HistoryRecord = serde_json::from_str(&line).map_err(|e| {
+                AiError::History(format!(
+                    "parse error at line {}: {e} — line starts with: {:?}",
+                    line_num + 1,
+                    &line[..line.len().min(80)]
+                ))
+            })?;
+
+            records.push(record);
         }
 
-        let mut list = Vec::new();
-        if let Ok(content) = std::fs::read_to_string(path) {
-            for line in content.lines() {
-                let line = line.trim();
-                if line.is_empty() { continue; }
-                if let Ok(o) = serde_json::from_str::<ProbeOutcome>(line) {
-                    list.push(o);
-                }
+        Ok(records)
+    }
+
+    fn rotate(&mut self) -> Result<(), AiError> {
+        // Оставляем только последние max_records/2 записей
+        let keep = self.max_records / 2;
+        if self.records.len() > keep {
+            self.records.drain(0..self.records.len() - keep);
+        }
+
+        // Переписываем файл
+        if !self.file_path.as_os_str().is_empty() {
+            let mut file = fs::File::create(&self.file_path)
+                .map_err(|e| AiError::History(format!("cannot create for rotation: {e}")))?;
+
+            for record in &self.records {
+                let line = serde_json::to_string(record)
+                    .map_err(|e| AiError::History(format!("serialization: {e}")))?;
+                writeln!(file, "{line}")
+                    .map_err(|e| AiError::History(format!("write error: {e}")))?;
             }
         }
 
-        inner.cache = Some(list.clone());
-        list
-    }
-
-    /// Ротация старых записей (удаление старше N дней).
-    pub fn rotate_old_entries(&self, keep_days: i64) {
-        if keep_days <= 0 { return; }
-        let cutoff = Utc::now() - chrono::Duration::days(keep_days);
-
-        let kept = self.load_all().into_iter()
-            .filter(|o| o.timestamp >= cutoff)
-            .collect::<Vec<_>>();
-
-        let mut inner = self.inner.lock().unwrap();
-
-        if let Some(dir) = Path::new(&self.path).parent() {
-            let _ = std::fs::create_dir_all(dir);
-        }
-
-        // Перезаписать файл только сохранёнными записями
-        if let Ok(mut file) = std::fs::File::create(&self.path) {
-            use std::io::Write;
-            // Сортируем по времени
-            let mut sorted = kept.clone();
-            sorted.sort_by_key(|o| o.timestamp);
-            for o in &sorted {
-                if let Ok(json) = serde_json::to_string(o) {
-                    let _ = writeln!(file, "{}", json);
-                }
-            }
-        }
-
-        inner.cache = Some(kept);
-    }
-
-    /// Очистить кэш (например, после внешней модификации файла).
-    pub fn invalidate_cache(&self) {
-        let mut inner = self.inner.lock().unwrap();
-        inner.cache = None;
-    }
-
-    /// Сбросить все данные.
-    pub fn reset_all(&self) {
-        let _ = std::fs::remove_file(&self.path);
-        let mut inner = self.inner.lock().unwrap();
-        inner.cache = Some(Vec::new());
+        self.dirty = false;
+        Ok(())
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::genome::{DpiEngineType, StrategyGenome, StrategyOrigin};
 
-    fn make_outcome(genome_id: &str, network: &str, score: u32) -> ProbeOutcome {
-        let mut o = ProbeOutcome::new(genome_id.into(), network.into());
-        o.score = score;
-        o.timestamp = Utc::now();
-        o
+    fn make_record(score: i32) -> HistoryRecord {
+        let g = StrategyGenome::new(DpiEngineType::Zapret, StrategyOrigin::Builtin);
+        HistoryRecord::new(g.id, "test-net", score, 100.0)
     }
 
     #[test]
-    fn test_history_create() {
-        let h = AiHistoryStore::new("/tmp/bsdpi-test-history.json".into());
-        assert!(h.load_all().is_empty());
+    fn test_empty_store() {
+        let store = AiHistoryStore::in_memory();
+        assert!(store.is_empty());
+        assert_eq!(store.len(), 0);
     }
 
     #[test]
-    fn test_append_and_load() {
-        let path = "/tmp/bsdpi-test-append.json";
-        let _ = std::fs::remove_file(path);
-
-        let h = AiHistoryStore::new(path.into());
-        h.append(make_outcome("g1", "net1", 85));
-        h.append(make_outcome("g2", "net1", 50));
-
-        let all = h.load_all();
-        assert_eq!(all.len(), 2);
-        assert_eq!(all[0].genome_id, "g1");
-        assert_eq!(all[1].genome_id, "g2");
-
-        let _ = std::fs::remove_file(path);
+    fn test_append_record() {
+        let mut store = AiHistoryStore::in_memory();
+        let record = make_record(80);
+        store.append(record).unwrap();
+        assert_eq!(store.len(), 1);
     }
 
     #[test]
-    fn test_load_for_network() {
-        let path = "/tmp/bsdpi-test-load-net.json";
-        let _ = std::fs::remove_file(path);
+    fn test_for_network() {
+        let mut store = AiHistoryStore::in_memory();
+        let mut r1 = make_record(80);
+        r1.network_hash = "net-a".into();
+        let mut r2 = make_record(30);
+        r2.network_hash = "net-b".into();
 
-        let h = AiHistoryStore::new(path.into());
-        h.append(make_outcome("g1", "net1", 85));
-        h.append(make_outcome("g1", "net2", 90));
-        h.append(make_outcome("g2", "net1", 50));
+        store.append(r1).unwrap();
+        store.append(r2).unwrap();
 
-        let net1 = h.load_for_network("net1");
-        assert_eq!(net1.len(), 2);
-        assert!(net1.iter().all(|o| o.network_hash == "net1"));
-
-        let _ = std::fs::remove_file(path);
+        assert_eq!(store.for_network("net-a").len(), 1);
+        assert_eq!(store.for_network("net-b").len(), 1);
     }
 
     #[test]
-    fn test_load_for_genome_and_network() {
-        let path = "/tmp/bsdpi-test-load-gen.json";
-        let _ = std::fs::remove_file(path);
+    fn test_outcomes() {
+        let mut store = AiHistoryStore::in_memory();
+        store.append(make_record(80)).unwrap();
+        store.append(make_record(30)).unwrap();
 
-        let h = AiHistoryStore::new(path.into());
-        h.append(make_outcome("g1", "net1", 85));
-        h.append(make_outcome("g1", "net2", 90));
-        h.append(make_outcome("g2", "net1", 50));
-
-        let results = h.load_for("g1", "net1");
-        assert_eq!(results.len(), 1);
-        assert_eq!(results[0].genome_id, "g1");
-
-        let _ = std::fs::remove_file(path);
+        let outcomes = store.outcomes();
+        assert_eq!(outcomes.len(), 2);
+        assert!(outcomes.iter().any(|(_, s)| *s == 80));
+        assert!(outcomes.iter().any(|(_, s)| *s == 30));
     }
 
     #[test]
-    fn test_cache_invalidation() {
-        let path = "/tmp/bsdpi-test-cache.json";
-        let _ = std::fs::remove_file(path);
+    fn test_save_and_load() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("history.jsonl");
 
-        let h = AiHistoryStore::new(path.into());
-        h.append(make_outcome("g1", "net1", 85));
-        assert_eq!(h.load_all().len(), 1);
+        let mut store = AiHistoryStore::new(&path, 1000).unwrap();
+        store.append(make_record(80)).unwrap();
 
-        h.invalidate_cache();
-        // После инвалидации кэша, load_all перечитает с диска
-        assert_eq!(h.load_all().len(), 1);
-
-        let _ = std::fs::remove_file(path);
+        // Загружаем снова
+        let loaded = AiHistoryStore::new(&path, 1000).unwrap();
+        assert_eq!(loaded.len(), 1);
     }
 
     #[test]
-    fn test_reset() {
-        let path = "/tmp/bsdpi-test-reset.json";
-        let _ = std::fs::remove_file(path);
-
-        let h = AiHistoryStore::new(path.into());
-        h.append(make_outcome("g1", "net1", 85));
-        assert_eq!(h.load_all().len(), 1);
-
-        h.reset_all();
-        assert_eq!(h.load_all().len(), 0);
-
-        let _ = std::fs::remove_file(path);
+    fn test_clear() {
+        let mut store = AiHistoryStore::in_memory();
+        store.append(make_record(80)).unwrap();
+        store.clear().unwrap();
+        assert!(store.is_empty());
     }
 
     #[test]
-    fn test_rotate_old_entries() {
-        let path = "/tmp/bsdpi-test-rotate.json";
-        let _ = std::fs::remove_file(path);
+    fn test_for_genome_on_network() {
+        let mut store = AiHistoryStore::in_memory();
+        let g1 = StrategyGenome::new(DpiEngineType::Zapret, StrategyOrigin::Builtin);
+        let g2 = StrategyGenome::new(DpiEngineType::ByeDpi, StrategyOrigin::Builtin);
 
-        let h = AiHistoryStore::new(path.into());
+        store.append(HistoryRecord::new(g1.id, "net-a", 80, 50.0)).unwrap();
+        store.append(HistoryRecord::new(g1.id, "net-b", 30, 200.0)).unwrap();
+        store.append(HistoryRecord::new(g2.id, "net-a", 95, 100.0)).unwrap();
 
-        // Старая запись
-        let mut old = make_outcome("g1", "net1", 85);
-        old.timestamp = Utc::now() - chrono::Duration::days(10);
-        h.append(old);
-
-        // Новая запись
-        h.append(make_outcome("g2", "net1", 90));
-
-        h.rotate_old_entries(5); // keep 5 days
-
-        let all = h.load_all();
-        assert_eq!(all.len(), 1);
-        assert_eq!(all[0].genome_id, "g2");
-
-        let _ = std::fs::remove_file(path);
+        assert_eq!(store.for_genome_on_network(&g1.id, "net-a").len(), 1);
+        assert_eq!(store.for_genome_on_network(&g1.id, "net-b").len(), 1);
+        assert_eq!(store.for_genome_on_network(&g2.id, "net-a").len(), 1);
+        assert_eq!(store.for_genome_on_network(&g2.id, "net-b").len(), 0);
     }
 
     #[test]
-    fn test_history_record_creation() {
-        let record = HistoryRecord::new(
-            WorkEvent::StrategySelected("s1".into()),
-            WorkResult::Success,
-        );
-        assert_eq!(
-            match record.event {
-                WorkEvent::StrategySelected(ref id) => id.clone(),
-                _ => String::new(),
-            },
-            "s1"
-        );
-    }
+    fn test_rotation_keeps_recent() {
+        let mut store = AiHistoryStore::in_memory();
+        store.max_records = 10;
 
-    #[test]
-    fn test_empty_file_load() {
-        let path = "/tmp/bsdpi-test-empty.json";
-        let _ = std::fs::remove_file(path);
-        let h = AiHistoryStore::new(path.into());
-        assert!(h.load_all().is_empty());
-    }
+        for i in 0..20 {
+            store.append(HistoryRecord::new(
+                Uuid::new_v4(),
+                format!("net-{i}"),
+                i,
+                i as f64,
+            )).unwrap();
+        }
 
-    #[test]
-    fn test_probe_outcome_fields() {
-        let mut o = ProbeOutcome::new("g1".into(), "net1".into());
-        o.score = 100;
-        o.success_rate = 1.0;
-        o.avg_latency_ms = 42.5;
-        o.process_stable = true;
-        o.failed_target_keys.push("example.com".into());
-        o.failure_signature = Some("timeout".into());
-
-        assert_eq!(o.genome_id, "g1");
-        assert_eq!(o.network_hash, "net1");
-        assert_eq!(o.score, 100);
-        assert!((o.success_rate - 1.0).abs() < 0.01);
-        assert!(o.process_stable);
+        // Должно быть не больше max_records
+        assert!(store.len() <= 10);
     }
 }

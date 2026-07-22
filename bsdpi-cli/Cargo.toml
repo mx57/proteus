@@ -1,22 +1,20 @@
 [package]
 name = "bsdpi-cli"
 version.workspace = true
-edition = "2021"
+edition.workspace = true
 license.workspace = true
 authors.workspace = true
-description = "Proteus — AI DPI Bypass CLI"
-
-[[bin]]
-name = "proteus"
-path = "src/main.rs"
+description = "BSDPI CLI — управление Proteus через командную строку"
 
 [dependencies]
-clap = { version = "4", features = ["derive"] }
+bsdpi-ai.workspace = true
+bsdpi-engine.workspace = true
+bsdpi-core.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 tokio.workspace = true
-log.workspace = true
+clap = { version = "4", features = ["derive"] }
 chrono.workspace = true
-toml = "0.8"
-reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "json"] }
-bsdpi-core = { path = "../bsdpi-core" }
+log.workspace = true
+env_logger.workspace = true
+reqwest = { version = "0.12", features = ["blocking"] }

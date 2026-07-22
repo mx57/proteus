@@ -1,155 +1,184 @@
-//! GenomeSignature — уникальная сигнатура генома на основе SHA256.
+//! GenomeSignature — SHA256 хеш генома для дедупликации стратегий.
 //!
-//! Берёт все значимые поля генома, сериализует в JSON (отсортированный),
-//! и вычисляет SHA256 хеш. Используется для дедупликации стратегий.
+//! Два генома с одинаковой сигнатурой считаются эквивалентными.
+//! Сигнатура вычисляется по всем параметрам DPI bypass (без метаданных).
 //!
-//! C# оригинал: `BSDPI.AI/Models/GenomeSignature.cs`
+//! ## C# оригинал
+//! `BSDPI.AI/Models/GenomeSignature.cs`
 
 use crate::genome::StrategyGenome;
+use serde::Serialize;
 use sha2::{Digest, Sha256};
 
-/// Вычисляет уникальную сигнатуру генома.
-pub struct GenomeSignature;
-
-impl GenomeSignature {
-    /// Вычисляет SHA256 сигнатуру стратегии.
-    ///
-    /// Сериализует только значимые для сигнатуры поля в отсортированный JSON
-    /// (детерминированный порядок ключей) и хеширует SHA256.
-    /// Результат: 64-символьная hex строка.
-    pub fn compute(genome: &StrategyGenome) -> String {
-        // Собираем детерминированное представление для хеширования.
-        // Используем record-style формат: поле=значение разделённые \n
-        let mut payload = String::new();
-
-        payload.push_str(&format!("engine={}\n", genome.engine_type));
-        payload.push_str(&format!("filter_tcp={}\n", genome.filter_tcp));
-        payload.push_str(&format!("filter_udp={}\n", genome.filter_udp));
-        payload.push_str(&format!("desync_mode={}\n", genome.desync_mode));
-        payload.push_str(&format!("split_pos={}\n", opt_u32_str(genome.split_pos)));
-        payload.push_str(&format!("split_pos_sem={}\n", opt_str(&genome.split_pos_semantic)));
-        payload.push_str(&format!("disorder_pos={}\n", opt_str(&genome.disorder_pos)));
-        payload.push_str(&format!("fake_pos={}\n", opt_str(&genome.fake_pos)));
-        payload.push_str(&format!("oob_pos={}\n", opt_str(&genome.oob_pos)));
-        payload.push_str(&format!("disoob_pos={}\n", opt_str(&genome.disoob_pos)));
-        payload.push_str(&format!("tlsrec_pos={}\n", opt_str(&genome.tlsrec_pos)));
-        payload.push_str(&format!("fake_ttl={}\n", opt_u32_str(genome.fake_ttl)));
-        payload.push_str(&format!("auto_ttl={}\n", genome.auto_ttl));
-        payload.push_str(&format!("md5sig={}\n", opt_bool_str(genome.md5sig)));
-        payload.push_str(&format!("fake_tls_mod={}\n", opt_str(&genome.fake_tls_mod)));
-        payload.push_str(&format!("fake_sni={}\n", opt_str(&genome.fake_sni)));
-        payload.push_str(&format!("fake_data={}\n", opt_str(&genome.fake_data)));
-        payload.push_str(&format!("mod_http={}\n", opt_str(&genome.mod_http)));
-        payload.push_str(&format!("tlsminor={}\n", opt_u32_str(genome.tlsminor)));
-        payload.push_str(&format!("hosts={}\n", opt_str(&genome.hosts)));
-        payload.push_str(&format!("hostlist={}\n", opt_str(&genome.hostlist)));
-        payload.push_str(&format!("repeat_count={}\n", opt_u32_str(genome.repeat_count)));
-        payload.push_str(&format!("cache_ttl={}\n", opt_u32_str(genome.cache_ttl)));
-        payload.push_str(&format!("auto={}\n", opt_str(&genome.auto)));
-        payload.push_str(&format!("timeout={}\n", opt_u32_str(genome.timeout)));
-        payload.push_str(&format!("auto_mode={}\n", opt_u32_str(genome.auto_mode)));
-        payload.push_str(&format!("desync_any_proto={}\n", opt_str(&genome.desync_any_protocol)));
-        payload.push_str(&format!("desync_fooling={}\n", opt_str(&genome.desync_fooling)));
-        payload.push_str(&format!("fake_resend={}\n", opt_str(&genome.fake_resend)));
-        payload.push_str(&format!("warp_config={}\n", opt_str(&genome.warp_config)));
-        payload.push_str(&format!("mtu={}\n", opt_u32_str(genome.mtu)));
-        payload.push_str(&format!("gool={}\n", genome.gool_enabled));
-        payload.push_str(&format!("psiphon={}\n", genome.psiphon_enabled));
-        payload.push_str(&format!("psiphon_country={}\n", opt_str(&genome.psiphon_country)));
-        payload.push_str(&format!("scan={}\n", genome.scan_enabled));
-        payload.push_str(&format!("reserved={}\n", opt_str(&genome.reserved)));
-        payload.push_str(&format!("extra={}\n", genome.extra_args.join("\x1f")));
-
-        let mut hasher = Sha256::new();
-        hasher.update(payload.as_bytes());
-        format!("{:x}", hasher.finalize())
-    }
+/// Внутренняя структура для сериализации — только параметры, влияющие на сигнатуру.
+#[derive(Serialize)]
+struct SignaturePayload<'a> {
+    engine_type: &'a str,
+    filter_tcp: &'a str,
+    filter_udp: &'a str,
+    desync_mode: &'a str,
+    split_pos: Option<i32>,
+    split_pos_semantic: Option<&'a str>,
+    disorder_pos: Option<&'a str>,
+    fake_pos: Option<&'a str>,
+    oob_pos: Option<&'a str>,
+    disoob_pos: Option<&'a str>,
+    tlsrec_pos: Option<&'a str>,
+    fake_ttl: Option<i32>,
+    auto_ttl: bool,
+    md5sig: Option<bool>,
+    fake_tls_mod: Option<&'a str>,
+    fake_sni: Option<&'a str>,
+    fake_data: Option<&'a str>,
+    mod_http: Option<&'a str>,
+    tlsminor: Option<i32>,
+    hosts: Option<&'a str>,
+    hostlist: Option<&'a str>,
+    repeat_count: Option<i32>,
+    cache_ttl: Option<i32>,
+    auto: Option<&'a str>,
+    timeout: Option<i32>,
+    auto_mode: Option<i32>,
+    desync_any_protocol: Option<&'a str>,
+    desync_fooling: Option<&'a str>,
+    fake_resend: Option<&'a str>,
+    warp_config: Option<&'a str>,
+    mtu: Option<i32>,
+    gool_enabled: bool,
+    psiphon_enabled: bool,
+    psiphon_country: Option<&'a str>,
+    scan_enabled: bool,
+    reserved: Option<&'a str>,
+    extra: String,
 }
 
-fn opt_str(v: &Option<String>) -> &str {
-    v.as_deref().unwrap_or("")
+/// Вычисляет SHA256 сигнатуру генома.
+///
+/// Сигнатура не зависит от:
+/// - id, parent_ids, generation, origin
+/// - display_name, bat_file_name, source_bat_path
+/// - created_at, orchestrator_enabled
+/// - last_verification_score, last_verified_at
+pub fn compute(genome: &StrategyGenome) -> String {
+    let payload = SignaturePayload {
+        engine_type: genome.engine_type.as_str(),
+        filter_tcp: &genome.filter_tcp,
+        filter_udp: &genome.filter_udp,
+        desync_mode: &genome.desync_mode,
+        split_pos: genome.split_pos,
+        split_pos_semantic: genome.split_pos_semantic.as_deref(),
+        disorder_pos: genome.disorder_pos.as_deref(),
+        fake_pos: genome.fake_pos.as_deref(),
+        oob_pos: genome.oob_pos.as_deref(),
+        disoob_pos: genome.disoob_pos.as_deref(),
+        tlsrec_pos: genome.tlsrec_pos.as_deref(),
+        fake_ttl: genome.fake_ttl,
+        auto_ttl: genome.auto_ttl,
+        md5sig: genome.md5sig,
+        fake_tls_mod: genome.fake_tls_mod.as_deref(),
+        fake_sni: genome.fake_sni.as_deref(),
+        fake_data: genome.fake_data.as_deref(),
+        mod_http: genome.mod_http.as_deref(),
+        tlsminor: genome.tlsminor,
+        hosts: genome.hosts.as_deref(),
+        hostlist: genome.hostlist.as_deref(),
+        repeat_count: genome.repeat_count,
+        cache_ttl: genome.cache_ttl,
+        auto: genome.auto.as_deref(),
+        timeout: genome.timeout,
+        auto_mode: genome.auto_mode,
+        desync_any_protocol: genome.desync_any_protocol.as_deref(),
+        desync_fooling: genome.desync_fooling.as_deref(),
+        fake_resend: genome.fake_resend.as_deref(),
+        warp_config: genome.warp_config.as_deref(),
+        mtu: genome.mtu,
+        gool_enabled: genome.gool_enabled,
+        psiphon_enabled: genome.psiphon_enabled,
+        psiphon_country: genome.psiphon_country.as_deref(),
+        scan_enabled: genome.scan_enabled,
+        reserved: genome.reserved.as_deref(),
+        extra: genome.extra_args.join("\u{1f}"),
+    };
+
+    let json = serde_json::to_string(&payload).unwrap_or_default();
+    let hash = Sha256::digest(json.as_bytes());
+    hex::encode(hash)
 }
 
-fn opt_u32_str(v: Option<u32>) -> String {
-    v.map(|x| x.to_string()).unwrap_or_default()
+/// Вычислить сигнатуру для набора геномов (все уникальные).
+pub fn compute_set(genomes: &[StrategyGenome]) -> Vec<String> {
+    let mut sigs: Vec<String> = genomes.iter().map(compute).collect();
+    sigs.sort();
+    sigs.dedup();
+    sigs
 }
 
-fn opt_bool_str(v: Option<bool>) -> String {
-    match v {
-        Some(true) => "true".into(),
-        Some(false) => "false".into(),
-        None => String::new(),
-    }
+/// Проверить, есть ли геном с такой же сигнатурой в наборе.
+pub fn exists_in(genome: &StrategyGenome, pool: &[StrategyGenome]) -> bool {
+    let sig = compute(genome);
+    pool.iter().any(|g| compute(g) == sig)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::genome::{DpiEngineType, StrategyGenome};
+    use crate::genome::StrategyGenome;
 
     #[test]
     fn test_signature_is_deterministic() {
-        let g1 = make_test_genome();
-        let g2 = make_test_genome();
-
-        let s1 = GenomeSignature::compute(&g1);
-        let s2 = GenomeSignature::compute(&g2);
-
-        assert_eq!(s1, s2, "same genome should produce same signature");
+        let a = StrategyGenome::default_zapret();
+        let b = StrategyGenome::default_zapret();
+        assert_eq!(compute(&a), compute(&b));
     }
 
     #[test]
-    fn test_signature_64_hex_chars() {
-        let g = make_test_genome();
-        let sig = GenomeSignature::compute(&g);
-        assert_eq!(sig.len(), 64, "SHA256 hex should be 64 chars, got {}", sig.len());
-        assert!(sig.chars().all(|c| c.is_ascii_hexdigit()), "expected hex string");
+    fn test_signature_differs_for_different_params() {
+        let mut a = StrategyGenome::default_zapret();
+        let mut b = StrategyGenome::default_zapret();
+        b.desync_mode = "fake".into();
+        assert_ne!(compute(&a), compute(&b));
     }
 
     #[test]
-    fn test_different_genomes_different_signatures() {
-        let mut g1 = make_test_genome();
-        let mut g2 = make_test_genome();
-        g2.desync_mode = "fake".into();
-
-        let s1 = GenomeSignature::compute(&g1);
-        let s2 = GenomeSignature::compute(&g2);
-        assert_ne!(s1, s2);
+    fn test_signature_ignores_metadata() {
+        let mut a = StrategyGenome::default_zapret();
+        let mut b = StrategyGenome::default_zapret();
+        b.display_name = "different-name".into();
+        b.id = uuid::Uuid::new_v4();
+        assert_eq!(compute(&a), compute(&b));
     }
 
     #[test]
-    fn test_signature_depends_on_fake_ttl() {
-        let mut g1 = make_test_genome();
-        let mut g2 = make_test_genome();
-        g2.fake_ttl = Some(128);
-
-        assert_ne!(
-            GenomeSignature::compute(&g1),
-            GenomeSignature::compute(&g2)
-        );
+    fn test_signature_ignores_generation() {
+        let mut a = StrategyGenome::default_zapret();
+        let mut b = StrategyGenome::default_zapret();
+        b.generation = 42;
+        assert_eq!(compute(&a), compute(&b));
     }
 
     #[test]
-    fn test_signature_depends_on_extra_args() {
-        let mut g1 = make_test_genome();
-        let mut g2 = make_test_genome();
-        g2.extra_args.push("--custom-arg".into());
-
-        assert_ne!(
-            GenomeSignature::compute(&g1),
-            GenomeSignature::compute(&g2)
-        );
+    fn test_signature_uses_extra_args() {
+        let mut a = StrategyGenome::default_zapret();
+        let mut b = StrategyGenome::default_zapret();
+        b.extra_args.push("--new".into());
+        assert_ne!(compute(&a), compute(&b));
     }
 
-    fn make_test_genome() -> StrategyGenome {
-        let mut g = StrategyGenome::new(DpiEngineType::Zapret, "Test".into());
-        g.filter_tcp = "443".into();
-        g.filter_udp = "443".into();
-        g.desync_mode = "split".into();
-        g.fake_ttl = Some(64);
-        g.auto_ttl = true;
-        g.repeat_count = Some(3);
-        g.disorder_pos = Some("3".into());
-        g
+    #[test]
+    fn test_compute_set_deduplicates() {
+        let a = StrategyGenome::default_zapret();
+        let b = StrategyGenome::default_zapret();
+        let c = StrategyGenome::default_byedpi();
+        let sigs = compute_set(&[a, b, c]);
+        assert_eq!(sigs.len(), 2); // zapret dupes, byedpi diff
+    }
+
+    #[test]
+    fn test_exists_in() {
+        let a = StrategyGenome::default_zapret();
+        let b = StrategyGenome::default_zapret();
+        let c = StrategyGenome::default_byedpi();
+        assert!(exists_in(&a, &[b, c.clone()]));
+        assert!(!exists_in(&c, &[StrategyGenome::default_zapret()]));
     }
 }

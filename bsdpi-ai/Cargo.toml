@@ -17,5 +17,7 @@ thiserror.workspace = true
 log.workspace = true
 rand_distr = "0.4"
 itertools = "0.14"
+hex = "0.4"
 
 [dev-dependencies]
+tempfile = "3"
