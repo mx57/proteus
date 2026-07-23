@@ -12,9 +12,11 @@ pub mod evolver;
 pub mod registry;
 pub mod history;
 pub mod error;
+pub mod orchestrator;
 
 // Re-exports
 pub use error::AiError;
+pub use orchestrator::{AiOrchestratorService, OrchestratorConfig, OrchestratorState};
 pub use fingerprint::{FingerprintProvider, NetworkFingerprint};
 pub use genome::{DpiEngineType, StrategyGenome, StrategyOrigin};
 pub use history::{HistoryRecord, AiHistoryStore};

@@ -12,7 +12,7 @@
 | # | Компонент | Статус | Тесты |
 |---|-----------|--------|-------|
 | **0** | **Workspace** | ✅ DONE | — |
-| **1** | **AI Core (bsdpi-ai)** | 🟢 **8/10 модулей DONE** | **68/68** |
+| **1** | **AI Core (bsdpi-ai)** | 🟢 **9/10 модулей DONE** | **74/74** |
 | 1.1 | wilson.rs — Wilson Score | ✅ DONE | 11 |
 | 1.2 | fingerprint.rs — NetworkFingerprint | ✅ DONE | 5 |
 | 1.3 | genome.rs — StrategyGenome (50+ params) | ✅ DONE | 7 |
@@ -21,7 +21,7 @@
 | 1.6 | evolver.rs — StrategyEvolver (GA: crossover, 15 mutations, GC) | ✅ DONE | 10 |
 | 1.7 | registry.rs — AiStrategyRegistry (JSON persistence) | ✅ DONE | 10 |
 | 1.8 | history.rs — AiHistoryStore (JSONL append-only log) | ✅ DONE | 8 |
-| 1.9 | orchestrator.rs — AiOrchestratorService | ⬜ | — |
+| 1.9 | orchestrator.rs — AiOrchestratorService | ✅ DONE | 6 |
 | **2** | **DPI Engine (bsdpi-engine)** | ⬜ | — |
 | **3** | **Core Services (bsdpi-core)** | ⬜ | — |
 | **4** | **GUI (bsdpi-gui)** | ⬜ | — |
@@ -46,7 +46,7 @@
 │   ├── evolver.rs                # StrategyEvolver (GA: crossover, mutation, GC)
 │   ├── registry.rs               # TODO: AiStrategyRegistry
 │   ├── history.rs                # TODO: AiHistoryStore
-│   └── orchestrator.rs           # TODO: AiOrchestratorService
+│   └── orchestrator.rs           # AiOrchestratorService
 ├── bsdpi-engine/                 # TODO
 ├── bsdpi-core/                   # TODO
 └── bsdpi-gui/                    # TODO
