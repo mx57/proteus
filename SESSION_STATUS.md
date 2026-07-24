@@ -21,7 +21,7 @@
 | 1.6 | evolver.rs — StrategyEvolver (GA: crossover, 15 mutations, GC) | ✅ DONE | 10 |
 | 1.7 | registry.rs — AiStrategyRegistry (JSON persistence) | ✅ DONE | 10 |
 | 1.8 | history.rs — AiHistoryStore (JSONL append-only log) | ✅ DONE | 8 |
-| 1.9 | orchestrator.rs — AiOrchestratorService | ⬜ | — |
+| 1.9 | orchestrator.rs — AiOrchestratorService | ✅ DONE | 2 |
 | **2** | **DPI Engine (bsdpi-engine)** | ⬜ | — |
 | **3** | **Core Services (bsdpi-core)** | ⬜ | — |
 | **4** | **GUI (bsdpi-gui)** | ⬜ | — |
@@ -46,7 +46,7 @@
 │   ├── evolver.rs                # StrategyEvolver (GA: crossover, mutation, GC)
 │   ├── registry.rs               # TODO: AiStrategyRegistry
 │   ├── history.rs                # TODO: AiHistoryStore
-│   └── orchestrator.rs           # TODO: AiOrchestratorService
+│   └── orchestrator.rs           # AiOrchestratorService
 ├── bsdpi-engine/                 # TODO
 ├── bsdpi-core/                   # TODO
 └── bsdpi-gui/                    # TODO
@@ -126,7 +126,6 @@ cargo test -p bsdpi-ai evolver::tests::test_evolve_returns_child -- --nocapture
 
 1. **registry.rs** — AiStrategyRegistry (persistent storage через sled/JSON)
 2. **history.rs** — AiHistoryStore (append-only log)
-3. **orchestrator.rs** — AiOrchestratorService (state machine)
-4. **bsdpi-engine** — DPI Engine traits + Zapret/ByeDpi/Warp impl
+3. **bsdpi-engine** — DPI Engine traits + Zapret/ByeDpi/Warp impl
 5. **bsdpi-core** — probling, settings, updater
 6. **bsdpi-gui** — egui frontend
