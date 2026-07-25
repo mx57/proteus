@@ -15,6 +15,7 @@ chrono.workspace = true
 uuid.workspace = true
 thiserror.workspace = true
 log.workspace = true
+tokio.workspace = true
 rand_distr = "0.4"
 itertools = "0.14"
 hex = "0.4"
