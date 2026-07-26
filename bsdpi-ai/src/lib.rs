@@ -21,3 +21,4 @@ pub use fingerprint::{FingerprintProvider, NetworkFingerprint};
 pub use genome::{DpiEngineType, StrategyGenome, StrategyOrigin};
 pub use history::{HistoryRecord, AiHistoryStore};
 pub use signature::{compute as genome_signature, exists_in as genome_sig_exists};
+pub use orchestrator::{AiOrchestratorService, OrchestratorConfig, OrchestratorState, VerificationResult};

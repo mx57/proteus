@@ -152,7 +152,7 @@ impl BanditSelector {
         }
 
         // Шаг 3: Exploitation — считаем скоры для usable
-        let mut scored: Vec<ScoredCandidate> = usable_indices
+        let scored: Vec<ScoredCandidate> = usable_indices
             .iter()
             .map(|&i| {
                 let g = &candidates[i];
