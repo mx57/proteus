@@ -12,7 +12,7 @@
 | # | Компонент | Статус | Тесты |
 |---|-----------|--------|-------|
 | **0** | **Workspace** | ✅ DONE | — |
-| **1** | **AI Core (bsdpi-ai)** | 🟢 **8/10 модулей DONE** | **68/68** |
+| **1** | **AI Core (bsdpi-ai)** | 🟢 **9/10 модулей DONE** | **74/74** |
 | 1.1 | wilson.rs — Wilson Score | ✅ DONE | 11 |
 | 1.2 | fingerprint.rs — NetworkFingerprint | ✅ DONE | 5 |
 | 1.3 | genome.rs — StrategyGenome (50+ params) | ✅ DONE | 7 |
