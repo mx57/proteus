@@ -133,7 +133,7 @@ mod tests {
 
     #[test]
     fn test_signature_differs_for_different_params() {
-        let mut a = StrategyGenome::default_zapret();
+        let a = StrategyGenome::default_zapret();
         let mut b = StrategyGenome::default_zapret();
         b.desync_mode = "fake".into();
         assert_ne!(compute(&a), compute(&b));
@@ -141,7 +141,7 @@ mod tests {
 
     #[test]
     fn test_signature_ignores_metadata() {
-        let mut a = StrategyGenome::default_zapret();
+        let a = StrategyGenome::default_zapret();
         let mut b = StrategyGenome::default_zapret();
         b.display_name = "different-name".into();
         b.id = uuid::Uuid::new_v4();
@@ -150,7 +150,7 @@ mod tests {
 
     #[test]
     fn test_signature_ignores_generation() {
-        let mut a = StrategyGenome::default_zapret();
+        let a = StrategyGenome::default_zapret();
         let mut b = StrategyGenome::default_zapret();
         b.generation = 42;
         assert_eq!(compute(&a), compute(&b));
@@ -158,7 +158,7 @@ mod tests {
 
     #[test]
     fn test_signature_uses_extra_args() {
-        let mut a = StrategyGenome::default_zapret();
+        let a = StrategyGenome::default_zapret();
         let mut b = StrategyGenome::default_zapret();
         b.extra_args.push("--new".into());
         assert_ne!(compute(&a), compute(&b));

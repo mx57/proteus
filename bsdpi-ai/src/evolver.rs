@@ -96,7 +96,7 @@ impl StrategyEvolver {
         // Шаг 2: Попытки скрещивания (до 25)
         let mut child: Option<StrategyGenome> = None;
         for _attempt in 0..25 {
-            let mut p0 = parents[self.rng.gen_range(0..parents.len())];
+            let p0 = parents[self.rng.gen_range(0..parents.len())];
             let idx1 = self.rng.gen_range(0..parents.len());
             let mut p1 = parents[idx1];
 
@@ -379,7 +379,7 @@ impl StrategyEvolver {
             0
         };
 
-        let (mut evolved, others): (Vec<StrategyGenome>, Vec<StrategyGenome>) =
+        let (evolved, others): (Vec<StrategyGenome>, Vec<StrategyGenome>) =
             pool.drain(..).partition(|g| g.origin == StrategyOrigin::Evolved);
 
         if evolved.len() <= settings_max {
@@ -402,7 +402,7 @@ impl StrategyEvolver {
         ranked.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
 
         // Элитизм: защищаем топ-N
-        let protected: Vec<Uuid> = ranked.iter().take(elitism_count).map(|(g, _)| g.id).collect();
+        let _protected: Vec<Uuid> = ranked.iter().take(elitism_count).map(|(g, _)| g.id).collect();
         let mut removed = Vec::new();
 
         let remaining: Vec<(StrategyGenome, f64)> = ranked.into_iter().collect();
@@ -523,7 +523,7 @@ mod tests {
     fn test_mutate_zapret_changes_param() {
         let mut evolver = StrategyEvolver::new(10, true);
         let mut g = make_genome("split", DpiEngineType::Zapret);
-        let original_desync = g.desync_mode.clone();
+        let _original_desync = g.desync_mode.clone();
         evolver.mutate(&mut g);
         // После мутации может измениться desync_mode или другой параметр
         // Проверяем только что мутация не падает
