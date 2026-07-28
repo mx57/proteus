@@ -1,6 +1,0 @@
-[package]
-name = "bsdpi-updater"
-version.workspace = true
-edition.workspace = true
-license.workspace = true
-description = "BSDPI self-updater via GitHub Releases"

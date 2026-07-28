@@ -82,7 +82,7 @@ jobs:
           key: ${{ runner.os }}-${{ matrix.target }}-cargo-${{ hashFiles('**/Cargo.lock') }}
 
       - name: Build
-        run: cargo build --release -p bsdpi-cli --target ${{ matrix.target }}
+        run: cargo build --release -p proteus-cli --target ${{ matrix.target }}
 
       - name: Create portable archive
         run: |
@@ -123,7 +123,7 @@ jobs:
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
 
       - name: Build
-        run: cargo build --release -p bsdpi-cli --target aarch64-apple-darwin
+        run: cargo build --release -p proteus-cli --target aarch64-apple-darwin
 
       - name: Create portable archive
         run: |
