@@ -1,0 +1,6 @@
+[package]
+name = "proteus-updater"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Proteus self-updater via GitHub Releases"

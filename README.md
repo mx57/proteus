@@ -55,7 +55,7 @@ cargo run --bin proteus -- bandit
 cargo run --bin proteus -- probe
 
 # GUI (требуется дисплей)
-cargo run -p bsdpi-gui
+cargo run -p proteus-gui
 
 # Тесты
 cargo test --workspace
@@ -64,19 +64,19 @@ cargo test --workspace
 ## 🏗️ Архитектура
 
 ```
-bsdpi-rs/
-├── bsdpi-ai/        # AI Core (pure Rust)
+proteus-rs/
+├── proteus-ai/        # AI Core (pure Rust)
 │   ├── wilson.rs    # Wilson Score Lower Bound
 │   ├── bandit.rs    # Thompson Sampling + UCB1
 │   ├── evolver.rs   # Генетическая эволюция
 │   ├── genome.rs    # Геном стратегии (50+ параметров)
 │   ├── fingerprint  # Network Fingerprint
 │   └── orchestrator # AI-оркестратор
-├── bsdpi-engine/    # DPI Engine Layer (Zapret, ByeDPI, Warp)
-├── bsdpi-core/      # Core Services (probe, settings, chains)
-├── bsdpi-gui/       # Desktop GUI (egui/eframe)
-├── bsdpi-cli/       # CLI binary (proteus)
-└── bsdpi-updater/   # Self-update
+├── proteus-engine/    # DPI Engine Layer (Zapret, ByeDPI, Warp)
+├── proteus-core/      # Core Services (probe, settings, chains)
+├── proteus-gui/       # Desktop GUI (egui/eframe)
+├── proteus-cli/       # CLI binary (proteus)
+└── proteus-updater/   # Self-update
 ```
 
 ## 📦 Статус проекта

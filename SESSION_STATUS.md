@@ -1,8 +1,8 @@
-# BSDPI Rust Rewrite — SESSION STATUS
+# Proteus Rust Rewrite — SESSION STATUS
 
 > **Начало:** 2026-07-21
-> **Репозиторий:** /root/workspace/bsdpi-rs/ (локально)
-> **Цель:** Полный рерайт BSDPI_AI на Rust — AI Core, DPI Engines, Core Services
+> **Репозиторий:** /root/workspace/proteus-rs/ (локально)
+> **Цель:** Полный рерайт Proteus_AI на Rust — AI Core, DPI Engines, Core Services
 > **Лицензия:** GPLv3
 
 ---
@@ -12,7 +12,7 @@
 | # | Компонент | Статус | Тесты |
 |---|-----------|--------|-------|
 | **0** | **Workspace** | ✅ DONE | — |
-| **1** | **AI Core (bsdpi-ai)** | 🟢 **9/10 модулей DONE** | **74/74** |
+| **1** | **AI Core (proteus-ai)** | 🟢 **9/10 модулей DONE** | **74/74** |
 | 1.1 | wilson.rs — Wilson Score | ✅ DONE | 11 |
 | 1.2 | fingerprint.rs — NetworkFingerprint | ✅ DONE | 5 |
 | 1.3 | genome.rs — StrategyGenome (50+ params) | ✅ DONE | 7 |
@@ -22,20 +22,20 @@
 | 1.7 | registry.rs — AiStrategyRegistry (JSON persistence) | ✅ DONE | 10 |
 | 1.8 | history.rs — AiHistoryStore (JSONL append-only log) | ✅ DONE | 8 |
 | 1.9 | orchestrator.rs — AiOrchestratorService | ✅ DONE | 3 |
-| **2** | **DPI Engine (bsdpi-engine)** | ⬜ | — |
-| **3** | **Core Services (bsdpi-core)** | ⬜ | — |
-| **4** | **GUI (bsdpi-gui)** | ⬜ | — |
+| **2** | **DPI Engine (proteus-engine)** | ✅ DONE | 18/18 |
+| **3** | **Core Services (proteus-core)** | ✅ DONE | 30/30 |
+| **4** | **GUI (proteus-gui)** | ✅ DONE | 0/0 |
 
 ---
 
 ## 🧱 Структура
 
 ```
-/root/workspace/bsdpi-rs/
-├── Cargo.toml                    # Workspace root (bsdpi-ai, bsdpi-engine, bsdpi-core, bsdpi-gui)
+/root/workspace/proteus-rs/
+├── Cargo.toml                    # Workspace root (proteus-ai, proteus-engine, proteus-core, proteus-gui)
 ├── SESSION_STATUS.md             # Этот файл
 ├── PLAN.md                       # Детальный план
-├── bsdpi-ai/src/
+├── proteus-ai/src/
 │   ├── lib.rs                    # Публичный API
 │   ├── error.rs                  # AiError
 │   ├── wilson.rs                 # Wilson Score Lower Bound
@@ -47,9 +47,9 @@
 │   ├── registry.rs               # TODO: AiStrategyRegistry
 │   ├── history.rs                # TODO: AiHistoryStore
 │   └── orchestrator.rs           # AiOrchestratorService
-├── bsdpi-engine/                 # TODO
-├── bsdpi-core/                   # TODO
-└── bsdpi-gui/                    # TODO
+├── proteus-engine/                 # TODO
+├── proteus-core/                   # TODO
+└── proteus-gui/                    # TODO
 ```
 
 ---
@@ -62,7 +62,7 @@
 - `lower_bound(successes, trials, z) -> f64` — Wilson Score Lower Bound
 - `mean_score(scores) -> f64` — среднее арифметическое
 - Константы: `Z_95`, `Z_90`, `Z_99`
-- Порт `BSDPI.AI/Math/WilsonScore.cs`
+- Порт `Proteus.AI/Math/WilsonScore.cs`
 
 ### fingerprint.rs
 - `NetworkFingerprint` — хеш сети (SHA256 по транспорту, шлюзу, DNS, подсети)
@@ -108,16 +108,16 @@
 ## ⚙️ Команды
 
 ```bash
-cd /root/workspace/bsdpi-rs && . "$HOME/.cargo/env"
+cd /root/workspace/proteus-rs && . "$HOME/.cargo/env"
 
 # Сборка
-cargo build -p bsdpi-ai
+cargo build -p proteus-ai
 
 # Тесты (50/50)
-cargo test -p bsdpi-ai -v
+cargo test -p proteus-ai -v
 
 # Запуск конкретного теста
-cargo test -p bsdpi-ai evolver::tests::test_evolve_returns_child -- --nocapture
+cargo test -p proteus-ai evolver::tests::test_evolve_returns_child -- --nocapture
 ```
 
 ---
@@ -127,6 +127,6 @@ cargo test -p bsdpi-ai evolver::tests::test_evolve_returns_child -- --nocapture
 1. **registry.rs** — AiStrategyRegistry (persistent storage через sled/JSON)
 2. **history.rs** — AiHistoryStore (append-only log)
 ~~3. **orchestrator.rs** — AiOrchestratorService (state machine)~~
-4. **bsdpi-engine** — DPI Engine traits + Zapret/ByeDpi/Warp impl
-5. **bsdpi-core** — probling, settings, updater
-6. **bsdpi-gui** — egui frontend
+~~4. **proteus-engine** — DPI Engine traits + Zapret/ByeDpi/Warp impl~~
+~~5. **proteus-core** — probling, settings, updater~~
+~~6. **proteus-gui** — egui frontend~~

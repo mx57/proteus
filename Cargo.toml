@@ -1,10 +1,11 @@
 [workspace]
 resolver = "2"
 members = [
-    "bsdpi-ai",
-    "bsdpi-engine",
-    "bsdpi-core",
-    "bsdpi-gui",
+    "proteus-ai",
+    "proteus-engine",
+    "proteus-core",
+    "proteus-gui",
+    "proteus-cli",
 ]
 
 [workspace.dependencies]
@@ -24,3 +25,12 @@ version = "0.1.0"
 edition = "2021"
 license = "GPL-3.0-only"
 authors = ["mx57"]
+
+[workspace.dependencies.proteus-ai]
+path = "proteus-ai"
+
+[workspace.dependencies.proteus-engine]
+path = "proteus-engine"
+
+[workspace.dependencies.proteus-core]
+path = "proteus-core"
