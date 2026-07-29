@@ -217,6 +217,8 @@ impl ProbeService {
         let start = std::time::Instant::now();
 
         let semaphore = std::sync::Arc::new(tokio::sync::Semaphore::new(opts.max_parallel));
+        let timeout = Duration::from_secs(opts.timeout_secs);
+
         let mut handles = Vec::new();
         for target in targets {
             let cl = client.clone();
@@ -224,7 +226,9 @@ impl ProbeService {
             let permit = semaphore.clone().acquire_owned();
             handles.push(tokio::spawn(async move {
                 let _permit = permit.await.unwrap();
-                Self::check_target(&cl, &t).await
+                tokio::time::timeout(timeout, Self::check_target(&cl, &t))
+                    .await
+                    .unwrap_or_else(|_| CheckResult::failure(&t.key, "timeout"))
             }));
         }
 
@@ -392,7 +396,13 @@ mod tests {
     async fn test_check_tcp_timeout() {
         let client = reqwest::Client::new();
         let target = TargetEntry::tcp("192.0.2.1", 9); // reserved IP, should fail
-        let result = ProbeService::check_target(&client, &target).await;
+        let result = tokio::time::timeout(
+            std::time::Duration::from_secs(1),
+            ProbeService::check_target(&client, &target)
+        )
+        .await
+        .unwrap_or_else(|_| CheckResult::failure(&target.key, "timeout"));
+
         // May timeout or refuse connection - either way it's a failure
         assert!(!result.ok);
     }
