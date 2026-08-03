@@ -282,8 +282,11 @@ impl ProbeService {
             }
             "dns" => {
                 // Простая DNS проверка через TCP/IP
-                match tokio::net::lookup_host((target.key.as_str(), 0)).await {
-                    Ok(addrs) => {
+                match tokio::time::timeout(
+                    std::time::Duration::from_secs(10),
+                    tokio::net::lookup_host((target.key.as_str(), 0))
+                ).await {
+                    Ok(Ok(addrs)) => {
                         let latency = start.elapsed().as_secs_f64() * 1000.0;
                         if addrs.count() > 0 {
                             CheckResult::success(&target.key, latency)
@@ -291,17 +294,22 @@ impl ProbeService {
                             CheckResult::failure(&target.key, "no addresses")
                         }
                     }
-                    Err(e) => CheckResult::failure(&target.key, &e.to_string()),
+                    Ok(Err(e)) => CheckResult::failure(&target.key, &e.to_string()),
+                    Err(_) => CheckResult::failure(&target.key, "timeout"),
                 }
             }
             "tcp" => {
                 let port = target.port.unwrap_or(443);
-                match tokio::net::TcpStream::connect(format!("{}:{}", target.key, port)).await {
-                    Ok(_) => {
+                match tokio::time::timeout(
+                    std::time::Duration::from_secs(10),
+                    tokio::net::TcpStream::connect(format!("{}:{}", target.key, port))
+                ).await {
+                    Ok(Ok(_)) => {
                         let latency = start.elapsed().as_secs_f64() * 1000.0;
                         CheckResult::success(&target.key, latency)
                     }
-                    Err(e) => CheckResult::failure(&target.key, &e.to_string()),
+                    Ok(Err(e)) => CheckResult::failure(&target.key, &e.to_string()),
+                    Err(_) => CheckResult::failure(&target.key, "timeout"),
                 }
             }
             _ => CheckResult::failure(&target.key, "unknown check type"),
