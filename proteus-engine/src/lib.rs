@@ -22,6 +22,6 @@ pub mod warp;
 pub mod zapret;
 
 pub use byedpi::ByeDpiEngine;
-pub use traits::{DpiEngine, EngineError, EngineEvent, EngineProcessInfo, EngineStatus};
+pub use traits::{DpiEngine, DpiEngineType, EngineError, EngineEvent, EngineProcessInfo, EngineProfile, EngineStatus};
 pub use warp::WarpEngine;
 pub use zapret::ZapretEngine;
