@@ -146,9 +146,7 @@ impl ProbeService {
 
             handles.push(tokio::spawn(async move {
                 let _permit = permit.await.unwrap();
-                tokio::time::timeout(timeout, Self::check_target(&client, &target))
-                    .await
-                    .unwrap_or_else(|_| CheckResult::failure(&target.key, "timeout"))
+                Self::check_target(&client, &target, timeout).await
             }));
         }
 
@@ -226,9 +224,7 @@ impl ProbeService {
             let permit = semaphore.clone().acquire_owned();
             handles.push(tokio::spawn(async move {
                 let _permit = permit.await.unwrap();
-                tokio::time::timeout(timeout, Self::check_target(&cl, &t))
-                    .await
-                    .unwrap_or_else(|_| CheckResult::failure(&t.key, "timeout"))
+                Self::check_target(&cl, &t, timeout).await
             }));
         }
 
@@ -260,13 +256,18 @@ impl ProbeService {
         }
     }
 
-    async fn check_target(client: &reqwest::Client, target: &TargetEntry) -> CheckResult {
+    async fn check_target(
+        client: &reqwest::Client,
+        target: &TargetEntry,
+        timeout: Duration,
+    ) -> CheckResult {
         let start = std::time::Instant::now();
         match target.check_type.as_str() {
             "http" => {
                 let url = format!("https://{}/", target.key);
-                match client.get(&url).send().await {
-                    Ok(resp) => {
+                let request_future = client.get(&url).send();
+                match tokio::time::timeout(timeout, request_future).await {
+                    Ok(Ok(resp)) => {
                         let latency = start.elapsed().as_secs_f64() * 1000.0;
                         if resp.status().is_success()
                             || resp.status().is_redirection()
@@ -277,13 +278,15 @@ impl ProbeService {
                             CheckResult::failure(&target.key, &format!("HTTP {}", resp.status()))
                         }
                     }
-                    Err(e) => CheckResult::failure(&target.key, &e.to_string()),
+                    Ok(Err(e)) => CheckResult::failure(&target.key, &e.to_string()),
+                    Err(_) => CheckResult::failure(&target.key, "timeout"),
                 }
             }
             "dns" => {
                 // Простая DNS проверка через TCP/IP
-                match tokio::net::lookup_host((target.key.as_str(), 0)).await {
-                    Ok(addrs) => {
+                let dns_future = tokio::net::lookup_host((target.key.as_str(), 0));
+                match tokio::time::timeout(timeout, dns_future).await {
+                    Ok(Ok(addrs)) => {
                         let latency = start.elapsed().as_secs_f64() * 1000.0;
                         if addrs.count() > 0 {
                             CheckResult::success(&target.key, latency)
@@ -291,17 +294,20 @@ impl ProbeService {
                             CheckResult::failure(&target.key, "no addresses")
                         }
                     }
-                    Err(e) => CheckResult::failure(&target.key, &e.to_string()),
+                    Ok(Err(e)) => CheckResult::failure(&target.key, &e.to_string()),
+                    Err(_) => CheckResult::failure(&target.key, "timeout"),
                 }
             }
             "tcp" => {
                 let port = target.port.unwrap_or(443);
-                match tokio::net::TcpStream::connect(format!("{}:{}", target.key, port)).await {
-                    Ok(_) => {
+                let tcp_future = tokio::net::TcpStream::connect(format!("{}:{}", target.key, port));
+                match tokio::time::timeout(timeout, tcp_future).await {
+                    Ok(Ok(_)) => {
                         let latency = start.elapsed().as_secs_f64() * 1000.0;
                         CheckResult::success(&target.key, latency)
                     }
-                    Err(e) => CheckResult::failure(&target.key, &e.to_string()),
+                    Ok(Err(e)) => CheckResult::failure(&target.key, &e.to_string()),
+                    Err(_) => CheckResult::failure(&target.key, "timeout"),
                 }
             }
             _ => CheckResult::failure(&target.key, "unknown check type"),
@@ -396,12 +402,8 @@ mod tests {
     async fn test_check_tcp_timeout() {
         let client = reqwest::Client::new();
         let target = TargetEntry::tcp("192.0.2.1", 9); // reserved IP, should fail
-        let result = tokio::time::timeout(
-            std::time::Duration::from_secs(1),
-            ProbeService::check_target(&client, &target)
-        )
-        .await
-        .unwrap_or_else(|_| CheckResult::failure(&target.key, "timeout"));
+        let timeout = std::time::Duration::from_secs(1);
+        let result = ProbeService::check_target(&client, &target, timeout).await;
 
         // May timeout or refuse connection - either way it's a failure
         assert!(!result.ok);
