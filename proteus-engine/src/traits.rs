@@ -1,12 +1,9 @@
-//! DpiEngine trait — общий интерфейс для всех DPI-движков.
-//!
-//! Порт C# `Proteus.Core/Services/IDpiEngine.cs`
+//! Общие трейты и структуры для DPI движков.
 
-use std::fmt;
-use tokio::sync::broadcast;
+use serde::{Deserialize, Serialize};
 
-/// Статус DPI-движка.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+/// Статус работы движка.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum EngineStatus {
     Stopped,
     Starting,
@@ -25,83 +22,59 @@ impl EngineStatus {
     }
 }
 
-impl fmt::Display for EngineStatus {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(
-            f,
-            "{}",
-            match self {
-                EngineStatus::Stopped => "stopped",
-                EngineStatus::Starting => "starting",
-                EngineStatus::Running => "running",
-                EngineStatus::Failed => "failed",
-                EngineStatus::Crashed => "crashed",
-            }
-        )
+impl std::fmt::Display for EngineStatus {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            EngineStatus::Stopped => write!(f, "stopped"),
+            EngineStatus::Starting => write!(f, "starting"),
+            EngineStatus::Running => write!(f, "running"),
+            EngineStatus::Failed => write!(f, "failed"),
+            EngineStatus::Crashed => write!(f, "crashed"),
+        }
     }
 }
 
-/// Информация о запущенном процессе движка.
+/// События от движка.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum EngineEvent {
+    StatusChanged(EngineStatus),
+    LogLine(String),
+}
+
+/// Ошибки движка.
+#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
+pub enum EngineError {
+    #[error("Engine is already running")]
+    AlreadyRunning,
+    #[error("Failed to start engine: {0}")]
+    StartFailed(String),
+    #[error("Executable not found: {0}")]
+    ExecutableNotFound(String),
+    #[error("Configuration error: {0}")]
+    ConfigError(String),
+}
+
+/// Информация о запущенном процессе.
 #[derive(Debug, Clone)]
 pub struct EngineProcessInfo {
     pub pid: u32,
     pub process_name: String,
-    pub status: EngineStatus,
-    pub started_at: chrono::DateTime<chrono::Utc>,
     pub socks_port: Option<u16>,
+    pub status: EngineStatus,
 }
 
 impl EngineProcessInfo {
-    pub fn new(pid: u32, process_name: &str, socks_port: Option<u16>) -> Self {
+    pub fn new(pid: u32, process_name: impl Into<String>, socks_port: Option<u16>) -> Self {
         Self {
             pid,
-            process_name: process_name.to_string(),
-            status: EngineStatus::Running,
-            started_at: chrono::Utc::now(),
+            process_name: process_name.into(),
             socks_port,
+            status: EngineStatus::Running,
         }
     }
 }
 
-/// Событие от движка.
-#[derive(Debug, Clone)]
-pub enum EngineEvent {
-    StatusChanged(EngineStatus),
-    MessageReceived(String),
-    Error(String),
-}
-
-/// Ошибки DPI-движка.
-#[derive(Debug, Clone)]
-pub enum EngineError {
-    AlreadyRunning,
-    NotRunning,
-    ExecutableNotFound(String),
-    StartFailed(String),
-    StopFailed(String),
-    ProbeFailed(String),
-    Disposed,
-}
-
-impl fmt::Display for EngineError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            EngineError::AlreadyRunning => write!(f, "engine already running"),
-            EngineError::NotRunning => write!(f, "engine not running"),
-            EngineError::ExecutableNotFound(path) => write!(f, "executable not found: {}", path),
-            EngineError::StartFailed(msg) => write!(f, "start failed: {}", msg),
-            EngineError::StopFailed(msg) => write!(f, "stop failed: {}", msg),
-            EngineError::ProbeFailed(msg) => write!(f, "probe failed: {}", msg),
-            EngineError::Disposed => write!(f, "engine disposed"),
-        }
-    }
-}
-
-impl std::error::Error for EngineError {}
-
-/// Тип DPI-движка (переиспользуем из proteus-ai если доступно,
-/// но здесь определяем свой для независимости крейта).
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum DpiEngineType {
     Zapret,
     ByeDpi,
@@ -119,11 +92,12 @@ impl DpiEngineType {
 }
 
 /// Интерфейс DPI-движка (порт C# IDpiEngine).
+#[async_trait::async_trait]
 pub trait DpiEngine: Send + Sync {
     /// Получить тип движка.
     fn engine_type(&self) -> DpiEngineType;
 
-    /// Отображаемое имя.
+    /// Отображаемое имя (например, "Zapret winws.exe").
     fn display_name(&self) -> &str;
 
     /// Текущий статус.
@@ -132,27 +106,26 @@ pub trait DpiEngine: Send + Sync {
     /// Информация о процессе (если запущен).
     fn process_info(&self) -> Option<EngineProcessInfo>;
 
-    /// Получить receiver для событий движка.
-    fn events(&self) -> broadcast::Receiver<EngineEvent>;
+    /// Канал для подписки на события (статусы, логи).
+    fn events(&self) -> tokio::sync::broadcast::Receiver<EngineEvent>;
 
-    /// Запустить движок с заданным профилем.
-    fn start(
-        &mut self,
-        profile: &EngineProfile,
-    ) -> impl std::future::Future<Output = Result<(), EngineError>> + Send;
+    /// Запустить движок с указанным профилем.
+    async fn start(&mut self, profile: &EngineProfile) -> Result<(), EngineError>;
 
-    /// Остановить движок.
-    fn stop(&mut self) -> impl std::future::Future<Output = Result<(), EngineError>> + Send;
+    /// Остановить движок (мягко или жестко).
+    async fn stop(&mut self) -> Result<(), EngineError>;
 
-    /// Проверить статус движка.
-    fn probe(&mut self) -> impl std::future::Future<Output = EngineStatus> + Send;
+    /// Принудительно проверить жив ли процесс, возвращает актуальный статус.
+    async fn probe(&mut self) -> EngineStatus;
 }
 
-/// Профиль DPI-движка (аргументы командной строки).
-#[derive(Debug, Clone)]
+/// Платформо-независимые параметры запуска DPI движка.
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct EngineProfile {
     pub engine_type: DpiEngineType,
     pub socks_port: u16,
+
+    // Общие параметры обхода
     pub filter_tcp: String,
     pub filter_udp: String,
     pub desync_mode: String,
@@ -162,8 +135,10 @@ pub struct EngineProfile {
     pub oob_pos: Option<String>,
     pub disoob_pos: Option<String>,
     pub tlsrec_pos: Option<String>,
+
     pub fake_ttl: Option<u32>,
     pub auto_ttl: bool,
+
     pub md5sig: Option<bool>,
     pub fake_tls_mod: Option<String>,
     pub fake_sni: Option<String>,

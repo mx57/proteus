@@ -128,5 +128,5 @@ cargo test -p proteus-ai evolver::tests::test_evolve_returns_child -- --nocaptur
 2. **history.rs** — AiHistoryStore (append-only log)
 ~~3. **orchestrator.rs** — AiOrchestratorService (state machine)~~
 ~~4. **proteus-engine** — DPI Engine traits + Zapret/ByeDpi/Warp impl~~
-~~5. **proteus-core** — probling, settings, updater~~
+~~5. **proteus-core** — probling, settings, updater, engine manager~~
 ~~6. **proteus-gui** — egui frontend~~

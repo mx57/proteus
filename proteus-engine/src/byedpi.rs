@@ -18,6 +18,7 @@ impl ByeDpiEngine {
     }
 }
 
+#[async_trait::async_trait]
 impl DpiEngine for ByeDpiEngine {
     fn engine_type(&self) -> DpiEngineType {
         DpiEngineType::ByeDpi
