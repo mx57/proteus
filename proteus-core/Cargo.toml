@@ -16,3 +16,5 @@ chrono.workspace = true
 uuid.workspace = true
 toml = "0.8"
 reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "json"] }
+proteus-engine = { path = "../proteus-engine" }
+proteus-ai = { path = "../proteus-ai" }

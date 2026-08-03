@@ -18,6 +18,7 @@ impl WarpEngine {
     }
 }
 
+#[async_trait::async_trait]
 impl DpiEngine for WarpEngine {
     fn engine_type(&self) -> DpiEngineType {
         DpiEngineType::Warp
