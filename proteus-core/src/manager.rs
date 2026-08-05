@@ -3,7 +3,9 @@
 //! Порт C# `Proteus.Core/Services/DpiEngineManager.cs`
 
 use crate::probe::{ProbeOptions, ProbeResult, ProbeService, TargetEntry};
-use proteus_engine::{ByeDpiEngine, DpiEngine, EngineProfile, EngineStatus as EngStatus, WarpEngine, ZapretEngine};
+use proteus_engine::{
+    ByeDpiEngine, DpiEngine, EngineProfile, EngineStatus as EngStatus, WarpEngine, ZapretEngine,
+};
 
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -138,12 +140,21 @@ impl DpiEngineManager {
             let mut active_instances = self.active_engine_instances.lock().await;
 
             let mut dpi_engine: Box<dyn DpiEngine> = match engine_type {
-                ManagedEngineType::Zapret => Box::new(ZapretEngine::new(self.config.engine_dir.clone())),
-                ManagedEngineType::ByeDpi => Box::new(ByeDpiEngine::new(self.config.engine_dir.clone())),
-                ManagedEngineType::Warp => Box::new(WarpEngine::new(self.config.engine_dir.clone())),
+                ManagedEngineType::Zapret => {
+                    Box::new(ZapretEngine::new(self.config.engine_dir.clone()))
+                }
+                ManagedEngineType::ByeDpi => {
+                    Box::new(ByeDpiEngine::new(self.config.engine_dir.clone()))
+                }
+                ManagedEngineType::Warp => {
+                    Box::new(WarpEngine::new(self.config.engine_dir.clone()))
+                }
                 _ => {
                     engine.status = EngineStatus::Failed;
-                    return Err(format!("Engine type {:?} is not directly startable", engine_type));
+                    return Err(format!(
+                        "Engine type {:?} is not directly startable",
+                        engine_type
+                    ));
                 }
             };
 
@@ -168,7 +179,6 @@ impl DpiEngineManager {
                     Err(format!("Failed to start: {:?}", e))
                 }
             }
-
         } else {
             Err(format!("engine {:?} not registered", engine_type))
         }
@@ -178,12 +188,11 @@ impl DpiEngineManager {
     pub async fn stop(&self, engine_type: ManagedEngineType) -> Result<(), String> {
         let mut engines = self.engines_info.lock().await;
         if let Some(engine) = engines.iter_mut().find(|e| e.engine_type == engine_type) {
-
             let mut active_instances = self.active_engine_instances.lock().await;
 
             if let Some(mut dpi_engine) = active_instances.remove(&engine_type) {
                 if let Err(e) = dpi_engine.stop().await {
-                     log::error!("Error stopping engine {}: {:?}", engine.display_name, e);
+                    log::error!("Error stopping engine {}: {:?}", engine.display_name, e);
                 }
             }
 
@@ -204,12 +213,12 @@ impl DpiEngineManager {
         let engine_entry = engines.iter_mut().find(|e| e.engine_type == engine_type);
 
         if let Some(engine) = engine_entry {
-             let mut active_instances = self.active_engine_instances.lock().await;
-             if let Some(dpi_engine) = active_instances.get_mut(&engine_type) {
-                  let current_status = dpi_engine.probe().await;
-                  engine.status = current_status.into();
-             }
-             Some(engine.status)
+            let mut active_instances = self.active_engine_instances.lock().await;
+            if let Some(dpi_engine) = active_instances.get_mut(&engine_type) {
+                let current_status = dpi_engine.probe().await;
+                engine.status = current_status.into();
+            }
+            Some(engine.status)
         } else {
             None
         }

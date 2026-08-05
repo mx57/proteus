@@ -286,8 +286,10 @@ impl ProbeService {
                 // Простая DNS проверка через TCP/IP
                 match tokio::time::timeout(
                     std::time::Duration::from_secs(10),
-                    tokio::net::lookup_host((target.key.as_str(), 0))
-                ).await {
+                    tokio::net::lookup_host((target.key.as_str(), 0)),
+                )
+                .await
+                {
                     Ok(Ok(addrs)) => {
                         let latency = start.elapsed().as_secs_f64() * 1000.0;
                         if addrs.count() > 0 {
@@ -304,8 +306,10 @@ impl ProbeService {
                 let port = target.port.unwrap_or(443);
                 match tokio::time::timeout(
                     std::time::Duration::from_secs(10),
-                    tokio::net::TcpStream::connect(format!("{}:{}", target.key, port))
-                ).await {
+                    tokio::net::TcpStream::connect(format!("{}:{}", target.key, port)),
+                )
+                .await
+                {
                     Ok(Ok(_)) => {
                         let latency = start.elapsed().as_secs_f64() * 1000.0;
                         CheckResult::success(&target.key, latency)
