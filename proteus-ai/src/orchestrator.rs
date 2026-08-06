@@ -43,6 +43,21 @@ pub struct VerificationResult {
 }
 
 /// Оркестратор — конечный автомат для выбора, запуска и эволюции DPI-стратегий.
+
+/// События оркестратора.
+#[derive(Debug, Clone)]
+pub enum OrchestratorEvent {
+    BeginFingerprinting,
+    CompleteFingerprinting(NetworkFingerprint),
+    BeginSelection,
+    CompleteSelection(StrategyGenome),
+    BeginExecution,
+    CompleteExecution,
+    CompleteVerification(VerificationResult),
+    CompleteEvolution,
+    Reset,
+}
+
 pub struct AiOrchestratorService {
     config: OrchestratorConfig,
     state: Arc<Mutex<OrchestratorState>>,
@@ -67,139 +82,112 @@ impl AiOrchestratorService {
         *self.state.lock().await
     }
 
-    /// Начать процесс fingerprinting.
-    pub async fn begin_fingerprinting(&self) -> Result<(), AiError> {
+    /// Обработка события оркестратора (FSM).
+    pub async fn dispatch(&self, event: OrchestratorEvent) -> Result<(), AiError> {
         let mut state = self.state.lock().await;
-        if *state != OrchestratorState::Idle
-            && *state != OrchestratorState::Verifying
-            && *state != OrchestratorState::Evolving
-        {
-            return Err(AiError::Orchestrator(format!(
-                "cannot start fingerprinting from state {:?}",
-                *state
-            )));
-        }
-        *state = OrchestratorState::Fingerprinting;
-        Ok(())
-    }
 
-    pub async fn complete_fingerprinting(
-        &self,
-        fingerprint: NetworkFingerprint,
-    ) -> Result<(), AiError> {
-        let mut state = self.state.lock().await;
-        if *state != OrchestratorState::Fingerprinting {
-            return Err(AiError::Orchestrator(format!(
-                "cannot complete fingerprinting from state {:?}",
-                *state
-            )));
-        }
-        *self.current_fingerprint.lock().await = Some(fingerprint);
-        *state = OrchestratorState::Selecting;
-        Ok(())
-    }
+        match event {
+            OrchestratorEvent::BeginFingerprinting => {
+                if *state != OrchestratorState::Idle
+                    && *state != OrchestratorState::Verifying
+                    && *state != OrchestratorState::Evolving
+                {
+                    return Err(AiError::Orchestrator(format!(
+                        "cannot start fingerprinting from state {:?}",
+                        *state
+                    )));
+                }
+                *state = OrchestratorState::Fingerprinting;
+            }
+            OrchestratorEvent::CompleteFingerprinting(fingerprint) => {
+                if *state != OrchestratorState::Fingerprinting {
+                    return Err(AiError::Orchestrator(format!(
+                        "cannot complete fingerprinting from state {:?}",
+                        *state
+                    )));
+                }
+                *self.current_fingerprint.lock().await = Some(fingerprint);
+                *state = OrchestratorState::Selecting;
+            }
+            OrchestratorEvent::BeginSelection => {
+                if *state != OrchestratorState::Fingerprinting
+                    && *state != OrchestratorState::Idle
+                    && *state != OrchestratorState::Verifying
+                    && *state != OrchestratorState::Evolving
+                {
+                    return Err(AiError::Orchestrator(format!(
+                        "cannot start selection from state {:?}",
+                        *state
+                    )));
+                }
+                *state = OrchestratorState::Selecting;
+            }
+            OrchestratorEvent::CompleteSelection(strategy) => {
+                if *state != OrchestratorState::Selecting {
+                    return Err(AiError::Orchestrator(format!(
+                        "cannot complete selection from state {:?}",
+                        *state
+                    )));
+                }
+                *self.current_strategy.lock().await = Some(strategy);
+                *state = OrchestratorState::Executing;
+            }
+            OrchestratorEvent::BeginExecution => {
+                if *state != OrchestratorState::Selecting && *state != OrchestratorState::Idle {
+                    return Err(AiError::Orchestrator(format!(
+                        "cannot start execution from state {:?}",
+                        *state
+                    )));
+                }
+                *state = OrchestratorState::Executing;
+            }
+            OrchestratorEvent::CompleteExecution => {
+                if *state != OrchestratorState::Executing {
+                    return Err(AiError::Orchestrator(format!(
+                        "cannot complete execution from state {:?}",
+                        *state
+                    )));
+                }
+                *state = OrchestratorState::Verifying;
+            }
+            OrchestratorEvent::CompleteVerification(result) => {
+                if *state != OrchestratorState::Verifying {
+                    return Err(AiError::Orchestrator(format!(
+                        "cannot complete verification from state {:?}",
+                        *state
+                    )));
+                }
 
-    /// Начать выбор стратегии (bandit).
-    pub async fn begin_selection(&self) -> Result<(), AiError> {
-        let mut state = self.state.lock().await;
-        if *state != OrchestratorState::Fingerprinting
-            && *state != OrchestratorState::Idle
-            && *state != OrchestratorState::Verifying
-            && *state != OrchestratorState::Evolving
-        {
-            return Err(AiError::Orchestrator(format!(
-                "cannot start selection from state {:?}",
-                *state
-            )));
-        }
-        *state = OrchestratorState::Selecting;
-        Ok(())
-    }
+                if result.success {
+                    *self.failure_count.lock().await = 0;
+                    *state = OrchestratorState::Idle;
+                } else {
+                    let mut failures = self.failure_count.lock().await;
+                    *failures += 1;
 
-    /// Завершить выбор стратегии.
-    pub async fn complete_selection(&self, strategy: StrategyGenome) -> Result<(), AiError> {
-        let mut state = self.state.lock().await;
-        if *state != OrchestratorState::Selecting {
-            return Err(AiError::Orchestrator(format!(
-                "cannot complete selection from state {:?}",
-                *state
-            )));
-        }
-        *self.current_strategy.lock().await = Some(strategy);
-        *state = OrchestratorState::Executing;
-        Ok(())
-    }
-
-    /// Начать выполнение стратегии (запуск DPI движка).
-    pub async fn begin_execution(&self) -> Result<(), AiError> {
-        let mut state = self.state.lock().await;
-        if *state != OrchestratorState::Selecting && *state != OrchestratorState::Idle {
-            return Err(AiError::Orchestrator(format!(
-                "cannot start execution from state {:?}",
-                *state
-            )));
-        }
-        *state = OrchestratorState::Executing;
-        Ok(())
-    }
-
-    /// Стратегия запущена, переход к верификации.
-    pub async fn complete_execution(&self) -> Result<(), AiError> {
-        let mut state = self.state.lock().await;
-        if *state != OrchestratorState::Executing {
-            return Err(AiError::Orchestrator(format!(
-                "cannot complete execution from state {:?}",
-                *state
-            )));
-        }
-        *state = OrchestratorState::Verifying;
-        Ok(())
-    }
-
-    /// Завершение проверки работоспособности сети (probe).
-    pub async fn complete_verification(&self, result: VerificationResult) -> Result<(), AiError> {
-        let mut state = self.state.lock().await;
-        if *state != OrchestratorState::Verifying {
-            return Err(AiError::Orchestrator(format!(
-                "cannot complete verification from state {:?}",
-                *state
-            )));
-        }
-
-        if result.success {
-            *self.failure_count.lock().await = 0;
-            *state = OrchestratorState::Idle; // Всё работает, ждём (мониторим)
-        } else {
-            let mut failures = self.failure_count.lock().await;
-            *failures += 1;
-
-            if self.config.auto_evolve && *failures >= self.config.max_failures_before_evolve {
-                *state = OrchestratorState::Evolving;
-                *failures = 0; // Сбрасываем счётчик после запуска эволюции
-            } else {
-                *state = OrchestratorState::Selecting; // Пробуем выбрать другую стратегию
+                    if self.config.auto_evolve && *failures >= self.config.max_failures_before_evolve {
+                        *state = OrchestratorState::Evolving;
+                        *failures = 0;
+                    } else {
+                        *state = OrchestratorState::Selecting;
+                    }
+                }
+            }
+            OrchestratorEvent::CompleteEvolution => {
+                if *state != OrchestratorState::Evolving {
+                    return Err(AiError::Orchestrator(format!(
+                        "cannot complete evolution from state {:?}",
+                        *state
+                    )));
+                }
+                *state = OrchestratorState::Selecting;
+            }
+            OrchestratorEvent::Reset => {
+                *state = OrchestratorState::Idle;
+                *self.failure_count.lock().await = 0;
             }
         }
         Ok(())
-    }
-
-    /// Завершение процесса эволюции.
-    pub async fn complete_evolution(&self) -> Result<(), AiError> {
-        let mut state = self.state.lock().await;
-        if *state != OrchestratorState::Evolving {
-            return Err(AiError::Orchestrator(format!(
-                "cannot complete evolution from state {:?}",
-                *state
-            )));
-        }
-        *state = OrchestratorState::Selecting; // После эволюции выбираем новую стратегию
-        Ok(())
-    }
-
-    /// Сброс автомата в Idle.
-    pub async fn reset(&self) {
-        *self.state.lock().await = OrchestratorState::Idle;
-        *self.failure_count.lock().await = 0;
     }
 
     pub async fn current_fingerprint(&self) -> Option<NetworkFingerprint> {
@@ -227,7 +215,7 @@ mod tests {
         let orchestrator = AiOrchestratorService::new(OrchestratorConfig::default());
 
         // Idle -> Fingerprinting
-        orchestrator.begin_fingerprinting().await.unwrap();
+        orchestrator.dispatch(OrchestratorEvent::BeginFingerprinting).await.unwrap();
         assert_eq!(
             orchestrator.state().await,
             OrchestratorState::Fingerprinting
@@ -243,19 +231,17 @@ mod tests {
             local_subnet: "1.2.3.0/24".to_string(),
             captured_at: chrono::Utc::now(),
         };
-        orchestrator
-            .complete_fingerprinting(fingerprint)
-            .await
+        orchestrator.dispatch(OrchestratorEvent::CompleteFingerprinting(fingerprint)).await
             .unwrap();
         assert_eq!(orchestrator.state().await, OrchestratorState::Selecting);
 
         // Selecting -> Executing
         let strategy = StrategyGenome::new(DpiEngineType::Zapret, StrategyOrigin::Builtin);
-        orchestrator.complete_selection(strategy).await.unwrap();
+        orchestrator.dispatch(OrchestratorEvent::CompleteSelection(strategy)).await.unwrap();
         assert_eq!(orchestrator.state().await, OrchestratorState::Executing);
 
         // Executing -> Verifying
-        orchestrator.complete_execution().await.unwrap();
+        orchestrator.dispatch(OrchestratorEvent::CompleteExecution).await.unwrap();
         assert_eq!(orchestrator.state().await, OrchestratorState::Verifying);
 
         // Verifying -> Idle (Success)
@@ -264,7 +250,7 @@ mod tests {
             score: 100,
             latency_ms: 50.0,
         };
-        orchestrator.complete_verification(result).await.unwrap();
+        orchestrator.dispatch(OrchestratorEvent::CompleteVerification(result)).await.unwrap();
         assert_eq!(orchestrator.state().await, OrchestratorState::Idle);
     }
 
@@ -277,10 +263,10 @@ mod tests {
         let orchestrator = AiOrchestratorService::new(config);
 
         // Setup to Verifying state
-        orchestrator.begin_selection().await.unwrap();
+        orchestrator.dispatch(OrchestratorEvent::BeginSelection).await.unwrap();
         let strategy = StrategyGenome::new(DpiEngineType::Zapret, StrategyOrigin::Builtin);
-        orchestrator.complete_selection(strategy).await.unwrap();
-        orchestrator.complete_execution().await.unwrap();
+        orchestrator.dispatch(OrchestratorEvent::CompleteSelection(strategy)).await.unwrap();
+        orchestrator.dispatch(OrchestratorEvent::CompleteExecution).await.unwrap();
 
         let fail_result = VerificationResult {
             success: false,
@@ -289,26 +275,22 @@ mod tests {
         };
 
         // First failure -> Selecting
-        orchestrator
-            .complete_verification(fail_result.clone())
-            .await
+        orchestrator.dispatch(OrchestratorEvent::CompleteVerification(fail_result.clone())).await
             .unwrap();
         assert_eq!(orchestrator.state().await, OrchestratorState::Selecting);
 
         // Setup to Verifying state again
         let strategy2 = StrategyGenome::new(DpiEngineType::ByeDpi, StrategyOrigin::Builtin);
-        orchestrator.complete_selection(strategy2).await.unwrap();
-        orchestrator.complete_execution().await.unwrap();
+        orchestrator.dispatch(OrchestratorEvent::CompleteSelection(strategy2)).await.unwrap();
+        orchestrator.dispatch(OrchestratorEvent::CompleteExecution).await.unwrap();
 
         // Second failure -> Evolving (because max_failures_before_evolve is 2)
-        orchestrator
-            .complete_verification(fail_result)
-            .await
+        orchestrator.dispatch(OrchestratorEvent::CompleteVerification(fail_result)).await
             .unwrap();
         assert_eq!(orchestrator.state().await, OrchestratorState::Evolving);
 
         // Evolving -> Selecting
-        orchestrator.complete_evolution().await.unwrap();
+        orchestrator.dispatch(OrchestratorEvent::CompleteEvolution).await.unwrap();
         assert_eq!(orchestrator.state().await, OrchestratorState::Selecting);
     }
 }
