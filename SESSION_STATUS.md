@@ -12,7 +12,7 @@
 | # | Компонент | Статус | Тесты |
 |---|-----------|--------|-------|
 | **0** | **Workspace** | ✅ DONE | — |
-| **1** | **AI Core (proteus-ai)** | 🟢 **9/10 модулей DONE** | **74/74** |
+| **1** | **AI Core (proteus-ai)** | ✅ **10/10 модулей DONE** | **74/74** |
 | 1.1 | wilson.rs — Wilson Score | ✅ DONE | 11 |
 | 1.2 | fingerprint.rs — NetworkFingerprint | ✅ DONE | 5 |
 | 1.3 | genome.rs — StrategyGenome (50+ params) | ✅ DONE | 7 |
@@ -24,7 +24,7 @@
 | 1.9 | orchestrator.rs — AiOrchestratorService | ✅ DONE | 3 |
 | **2** | **DPI Engine (proteus-engine)** | ✅ DONE | 18/18 |
 | **3** | **Core Services (proteus-core)** | ✅ DONE | 30/30 |
-| **4** | **GUI (proteus-gui)** | ✅ DONE | 0/0 |
+| **4** | **GUI (proteus-gui)** | ✅ DONE | 3/3 |
 
 ---
 
@@ -129,4 +129,4 @@ cargo test -p proteus-ai evolver::tests::test_evolve_returns_child -- --nocaptur
 3. **orchestrator.rs** — AiOrchestratorService (state machine) ✅ DONE (refactored to event-driven)
 ~~4. **proteus-engine** — DPI Engine traits + Zapret/ByeDpi/Warp impl~~
 ~~5. **proteus-core** — probling, settings, updater, engine manager~~
-~~6. **proteus-gui** — egui frontend~~
+~~6. **proteus-gui** — egui frontend~~ (DONE)

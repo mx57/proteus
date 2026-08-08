@@ -34,3 +34,6 @@ path = "proteus-engine"
 
 [workspace.dependencies.proteus-core]
 path = "proteus-core"
+
+[workspace.dependencies.proteus-gui]
+path = "proteus-gui"

@@ -77,14 +77,14 @@
 - **Тест:** `proteus-ai/tests/evolver_test.rs`
 - **C# аналог:** `Services/StrategyEvolver.cs`
 
-### Task 1.7: AiStrategyRegistry
+### Task 1.7: AiStrategyRegistry (DONE)
 - **Модуль:** `proteus-ai/src/registry.rs`
 - **Структуры:** `StrategyRecord`, `AiStrategyRegistry`
 - **Хранилище:** sled-based local DB для персистентности
 - **Тест:** `proteus-ai/tests/registry_test.rs`
 - **C# аналог:** `Services/AiStrategyRegistry.cs`, `Services/StrategyRecord.cs`
 
-### Task 1.8: AiHistoryStore
+### Task 1.8: AiHistoryStore (DONE)
 - **Модуль:** `proteus-ai/src/history.rs`
 - **Структуры:** `HistoryRecord`, `AiHistoryStore`
 - **Тест:** `proteus-ai/tests/history_test.rs`
@@ -144,11 +144,11 @@
 
 ## Этап 5: GUI (proteus-gui)
 
-### Task 5.1: egui/eframe app scaffold
-### Task 5.2: AI панель (Bandit/Evolver/Fingerprint)
-### Task 5.3: DPI Engine панель (start/stop/status)
-### Task 5.4: Chain Builder (визуальный конструктор)
-### Task 5.5: Logs viewer
+### Task 5.1: egui/eframe app scaffold (DONE)
+### Task 5.2: AI панель (Bandit/Evolver/Fingerprint) (DONE)
+### Task 5.3: DPI Engine панель (start/stop/status) (DONE)
+### Task 5.4: Chain Builder (визуальный конструктор) (DONE)
+### Task 5.5: Logs viewer (DONE)
 
 ---
 

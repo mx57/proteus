@@ -128,9 +128,12 @@ impl DpiEngine for ZapretEngine {
                 // If it fails with "No such file or directory" during testing or development,
                 // log warning and pretend it started so tests pass
                 if std::env::var("PROTEUS_MOCK_ENGINE").is_ok() {
-                     log::warn!("Mocking Zapret engine start because PROTEUS_MOCK_ENGINE is set: {}", e);
-                     self.set_status(EngineStatus::Running);
-                     return Ok(());
+                    log::warn!(
+                        "Mocking Zapret engine start because PROTEUS_MOCK_ENGINE is set: {}",
+                        e
+                    );
+                    self.set_status(EngineStatus::Running);
+                    return Ok(());
                 }
 
                 self.set_status(EngineStatus::Failed);

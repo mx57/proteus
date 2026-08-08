@@ -10,6 +10,12 @@ pub struct ProteusApp {
     state: AppState,
 }
 
+impl Default for ProteusApp {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl ProteusApp {
     pub fn new() -> Self {
         Self {
